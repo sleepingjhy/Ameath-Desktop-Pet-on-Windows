@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
