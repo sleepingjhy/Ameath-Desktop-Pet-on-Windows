@@ -41,6 +41,32 @@ python main.py
 
 ---
 
+## v1.2.0
+
+### 🌐 新增多语言界面支持（中文 / English / 日本語 / 한국어 / Français）
+
+- 为可视化界面新增 5 种语言选项：
+  - 中文
+  - English
+  - 日本語
+  - 한국어
+  - Français
+- 在以下位置新增 **语言** 选择项：
+  - 应用前端的 **关于** 页面
+  - 桌宠 **右键菜单**
+- 语言列表使用对应语言自描述显示（例如：`中文`、`English`、`日本語`、`한국어`、`Français`）。
+- 用户选择会写入本地设置，并在下次启动时自动恢复。
+
+### 🎵 托盘菜单新增音乐控制
+
+- 托盘右键菜单新增 **🎵 音乐** 子菜单，支持：
+  - 显示当前歌曲（只读）
+  - 上一首 / 播放·暂停 / 下一首
+  - 播放模式切换（列表循环 / 单曲循环 / 随机播放）
+- 托盘音乐菜单与主播放器状态实时同步。
+
+---
+
 ## v1.1.0
 
 ### 🎵 音乐播放器
@@ -191,3 +217,147 @@ python main.py
     ├── 🚀 autostart.py       # Windows 开机自启管理
     └── 📋 menu.py            # 右键菜单与二级菜单构建
 ```
+
+---
+
+## English Documentation
+
+### Overview
+
+Ameath Desktop Pet is a Windows desktop pet application built with **PySide6**.
+It supports draggable animated pets, multi-instance control, display policies, system tray integration, and a built-in music player.
+
+### Requirements
+
+- Windows 10 / 11
+- Python 3.11+
+- Dependencies in `requirements.txt`
+
+### Quick Start
+
+1. Clone the repository
+
+```powershell
+git clone https://github.com/sleepingjhy/Ameath-Desktop-Pet-on-Windows.git
+cd Ameath-Desktop-Pet-on-Windows
+```
+
+2. Install dependencies
+
+```powershell
+pip install -r requirements.txt
+```
+
+3. Run the app
+
+```powershell
+python main.py
+```
+
+### Core Features
+
+#### v1.2.0
+
+- Multilingual UI support:
+  - Added 5 language options for all visual UI: `中文 / English / 日本語 / 한국어 / Français`.
+  - Added `Language` selector in:
+    - Frontend app `About` page.
+    - Pet right-click menu.
+  - Language list uses native self-names (for example: `中文`, `English`, `日本語`, `한국어`, `Français`).
+  - Selected language is persisted locally and restored automatically on next startup.
+- Tray music controls:
+  - Added `🎵 Music` submenu in tray right-click menu, supporting:
+    - Current track display (read-only).
+    - `Previous / Play·Pause / Next`.
+    - Play mode switch (`List Loop / Single Loop / Random`).
+  - Tray music submenu remains synchronized with main player state in real time.
+
+#### v1.1.0
+
+- Music playback:
+  - Added music playback to both right-click menu and frontend app window, playing tracks from `music/`.
+  - Repository keeps the `music/` folder structure, but audio files are not committed by default; add local files yourself.
+- Stability and memory cleanup:
+  - Fixed several memory-leak issues.
+  - Fully audited and reinforced exit-path cleanup for menu signals, player resources, timers, and list widgets.
+- Right-click menu (simplified controls):
+  - Right-click any pet instance → `🎵 Music` submenu:
+    - Current track name (read-only).
+    - `Previous / Play·Pause / Next`.
+    - Play mode switch (exclusive): `List Loop / Single Loop / Random`.
+    - Volume slider (app volume only; does not affect system volume).
+- Frontend app window (full player):
+  - Added `🎵 Music` tab in left navigation, including:
+    - Current track name + seekable progress bar.
+    - Main controls: `Previous / Play·Pause / Next`.
+    - Play mode button (cycles with icon `🔁/🔂/🔀`).
+    - Horizontal volume slider (`0` to `100%`).
+    - Import local audio files into `music/`.
+    - Right-click rename with synchronized file rename in `music/`.
+    - Batch delete mode with two confirmation options:
+      - Remove from playlist only.
+      - Remove from playlist and delete local files.
+    - Playlist supports jump-play, current-row highlight, drag-and-drop reorder, and stable scrollbar position.
+  - Right-click menu and frontend player stay synchronized in both directions in real time.
+- Context menu + instance highlight:
+  - Context menu no longer follows pet movement.
+  - Right-clicked instance shows sky-blue (`#00BFFF`) outline while the menu is open.
+  - Outline is removed immediately when menu closes.
+
+#### v1.0.0
+
+- Interaction:
+  - Hold left mouse button and drag: the pet shows `drag.gif` and moves with the cursor.
+  - Right-click opens a fixed-position context menu; the selected instance shows a sky-blue outline until the menu closes.
+  - Context menu includes:
+    - Open app window.
+    - Stop movement / Resume movement (affects current right-clicked instance only).
+    - Follow mouse (toggle).
+    - Scale (`0.1x` to `2.0x`, step `0.1`).
+    - Opacity (`10%` to `100%`, step `10%`, list style in context menu).
+    - Display priority (`Always on Top` / `Hide when other apps are fullscreen` / `Desktop only`).
+    - Multi-instance mode (`0` to `50`, effective immediately).
+    - Auto-start on system boot (Windows toggle).
+    - Close submenu:
+      - Close current pet only.
+      - Close _ pets (custom number with validation and "too few / too many" prompts).
+      - Close all pets and exit in one click.
+- Animation rules:
+  - Moving right: `move.gif`.
+  - Moving left: mirrored `move.gif`.
+  - Idle animations randomly selected from `ameath.gif`, `idle1.gif`, `idle2.gif`, `idle3.gif`, `idle4.gif`.
+  - Auto-move speed adapts to screen resolution, targeting about 20 seconds from left boundary to right boundary, with ±20% fluctuation.
+  - Random movement includes up/down/left/right motion.
+  - Pet bounces immediately at screen edges (never moves out of screen).
+- EXE frontend UI:
+  - Main window includes `Settings` and `About` pages.
+  - `gifs/ameath.ico` is used as both app icon and tray icon.
+  - Settings page covers move control, follow mouse, scale, opacity, display priority, instance count, auto-start, app exit, and close behavior.
+  - Settings-page move control applies to all instances; right-click move control applies to current instance only.
+  - Configurable settings are persisted locally and restored after restart.
+  - Opacity in Settings uses continuous slider (`0%` to `100%`, default `100%`) and syncs with context menu.
+  - Display priority and instance count support real-time two-way synchronization between Settings and context menu.
+  - About page centers `ameath.gif` (`648 × 648`) with author-support text below.
+- Display priority and multi-instance behavior:
+  - Visible pet instances stay above normal windowed apps.
+  - `Always on Top`: always displayed on top.
+  - `Hide when other apps are fullscreen`: hides immediately when top visible window is fullscreen or maximized; restores when conditions no longer match.
+  - `Desktop only`: visible only when desktop is foreground.
+  - Instance count is configurable from `0` to `50`, effective immediately.
+  - When instance count is `>= 2`, instances are temporarily forced topmost for visibility.
+  - When instance count returns to `1`, temporary topmost is removed and normal display-priority policy is restored.
+- Opacity and close policy:
+  - Settings page: continuous slider (`0%` to `100%`, default `100%`).
+  - Context menu: list options (`10%` to `100%`, `10%` step).
+  - Changes from either side synchronize in real time.
+  - Tray context menu provides `Open` and `Exit`.
+  - Clicking top-right `×` prompts `Quit app` or `Minimize to tray` with `Remember my choice`.
+  - The click-`×` behavior is configurable in Settings.
+
+### Build EXE
+
+```powershell
+./exe/build_exe.ps1
+```
+
+Build output is generated under `exe/dist/AmeathDesktopPet/`.

@@ -1,4 +1,5 @@
-"""该模块负责 GIF 播放与绘制。实现缩放、镜像和帧更新。"""
+﻿"""该模块负责 GIF 播放与绘制。实现缩放、镜像和帧更新。"""
+"""EN: This module handles GIF playback and rendering, including scaling, mirroring, and frame updates."""
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QMovie, QPainter, QTransform
@@ -9,6 +10,7 @@ from .config import SCALE_MAX, SCALE_MIN
 
 class GifLabel(QLabel):
     """这是 GIF 标签控件。支持镜像显示和比例缩放。"""
+    """EN: This is the GIF tag control. Supports mirrored display and scaling."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -19,18 +21,21 @@ class GifLabel(QLabel):
 
     def set_movie(self, movie: QMovie):
         """切换当前 GIF。切换时同步重连帧变化回调。"""
+        """EN: Toggles the current GIF. Synchronous reconnect frame change callback on switching."""
         if self._movie is movie:
             return
 
         if self._movie is not None:
             try:
                 # 先解绑旧信号。避免重复连接导致重复刷新。
+                # EN: Unbind the old signal first. Avoid duplicate connections leading to duplicate refreshes.
                 self._movie.frameChanged.disconnect(self._on_frame_changed)
             except (RuntimeError, TypeError):
                 pass
 
         self._movie = movie
         # 新动画要绑定帧回调。每帧变化都刷新尺寸和绘制。
+        # EN: The new animation binds the frame callback. Each frame change is refreshed in size and drawing.
         self._movie.frameChanged.connect(self._on_frame_changed)
         self._movie.start()
         self._resize_to_frame()
@@ -38,6 +43,7 @@ class GifLabel(QLabel):
 
     def clear_movie(self):
         """清理当前 GIF 引用并解除帧信号绑定。"""
+        """EN: Clears the current GIF reference and unbinds the frame signal."""
         if self._movie is None:
             return
 
@@ -52,27 +58,32 @@ class GifLabel(QLabel):
 
     def set_mirror(self, mirror: bool):
         """设置镜像开关。向左移动时通常开启水平镜像。"""
+        """EN: Set the mirror switch. Horizontal mirroring is usually turned on when moving to the left."""
         if self._mirror != mirror:
             self._mirror = mirror
             self.update()
 
     def set_scale(self, scale: float):
         """设置显示比例。变更后立即刷新尺寸和绘制。"""
+        """EN: Set the zoom. Refresh the dimensions and drawings as soon as you change them."""
         self._scale = max(SCALE_MIN, min(SCALE_MAX, scale))
         self._resize_to_frame()
         self.update()
 
     def _on_frame_changed(self, _: int):
         """处理帧变化。帧变化时同步控件大小并重绘。"""
+        """EN: Handles frame changes. Synchronizes the control size and redraws when the frame changes."""
         self._resize_to_frame()
         self.update()
 
     def _resize_to_frame(self):
         """更新标签尺寸。依据当前帧尺寸和缩放比例计算。"""
+        """EN: Update label size. Calculated based on the current frame size and scale."""
         if self._movie is None:
             return
 
         # 优先读取像素图尺寸。失败时回退到当前图像尺寸。
+        # EN: Read pixel map sizes first. Falls back to the current image size on failure.
         pix = self._movie.currentPixmap()
         if pix.isNull():
             size = self._movie.currentImage().size()
@@ -86,6 +97,7 @@ class GifLabel(QLabel):
 
     def paintEvent(self, event):
         """执行自定义绘制。先缩放，再按需镜像后输出到控件。"""
+        """EN: Perform a custom drawing. Zoom first, then mirror on demand and output to the control."""
         if self._movie is None:
             return super().paintEvent(event)
 
@@ -111,6 +123,7 @@ class GifLabel(QLabel):
 
         if self._mirror:
             # 镜像模式绘制翻转帧。用于角色向左移动。
+            # EN: Mirror mode draws a flip frame. Used to move the character to the left.
             transform = QTransform()
             transform.scale(-1, 1)
             mirrored = scaled.transformed(transform, Qt.TransformationMode.SmoothTransformation)
@@ -122,8 +135,10 @@ class GifLabel(QLabel):
 
 def create_movie(path):
     """创建 QMovie 实例。统一配置缓存和播放速度。"""
+    """EN: Create a QMovie instance. Configure cache and playback speeds uniformly."""
     movie = QMovie(str(path))
     # 采用按需解码缓存，降低多实例与频繁动作切换时的内存占用。
+    # EN: Adopt on-demand decoding cache to reduce memory consumption when switching between multiple instances and frequent actions.
     movie.setCacheMode(QMovie.CacheMode.CacheNone)
     movie.setSpeed(100)
     return movie

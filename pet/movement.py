@@ -1,4 +1,5 @@
-"""该模块负责桌宠位移控制。包含自动移动、跟随鼠标、边界约束和方向更新。"""
+﻿"""该模块负责桌宠位移控制。包含自动移动、跟随鼠标、边界约束和方向更新。"""
+"""EN: This module controls pet movement, including auto-move, mouse following, boundary constraints, and direction updates."""
 
 import random
 import time
@@ -16,9 +17,11 @@ from .config import (
 
 class MovementController:
     """这是桌宠位移控制器。统一管理速度、浮点坐标和边界行为。"""
+    """EN: This is the table pet displacement controller. Unified management of speed, floating point coordinates, and boundary behavior."""
 
     def __init__(self, pet):
         """初始化移动控制状态。设置速度、浮点坐标和触边停顿计时字段。"""
+        """EN: Initializes the movement control state. Set the speed, floating point coordinates, and touch pause timing fields."""
         self.pet = pet
         self.velocity_x = 1.0
         self.velocity_y = 0.0
@@ -32,30 +35,37 @@ class MovementController:
 
     def _sync_float_position(self):
         """同步浮点坐标到窗口坐标。避免长时间移动产生累计误差。"""
+        """EN: Synchronize floating point coordinates to window coordinates. Avoid cumulative errors with prolonged movement."""
         self.float_x = float(self.pet.x())
         self.float_y = float(self.pet.y())
 
     def _base_speed_x(self, geometry: QRect) -> float:
         """按分辨率计算横向基准速度。目标是约 20 秒横穿可用宽度。"""
+        """EN: Calculates the lateral reference velocity by resolution. The goal is to traverse the available width for about 20 seconds."""
         # 先计算可移动横向距离。宽度需扣除桌宠自身宽度。
+        # EN: Calculate the movable lateral distance first. The width shall be deducted from the width of the table pet itself.
         travel_px = max(1, geometry.width() - self.pet.width())
         # 再换算每 tick 位移。总耗时除以主循环间隔得到 tick 总数。
+        # EN: Then convert the displacement per tick. The total time spent divided by the main loop interval gives the total number of ticks.
         ticks = max(1.0, (CROSS_SCREEN_SECONDS * 1000.0) / MOVE_TICK_MS)
         return max(0.2, travel_px / ticks)
 
     def _base_speed_y(self, geometry: QRect) -> float:
         """按分辨率计算纵向基准速度。目标是约 20 秒纵穿可用高度。"""
+        """EN: Calculates the longitudinal reference velocity by resolution. The goal is to traverse the available altitude for about 20 seconds."""
         travel_px = max(1, geometry.height() - self.pet.height())
         ticks = max(1.0, (CROSS_SCREEN_SECONDS * 1000.0) / MOVE_TICK_MS)
         return max(0.2, travel_px / ticks)
 
     def _randomized_speed(self, base_speed: float) -> float:
         """在基准速度上应用随机浮动。范围为 0.8x~1.2x。"""
+        """EN: Apply a random float on the reference velocity. The range is 0.8x~1.2x."""
         factor = random.uniform(0.8, 1.2)
         return max(0.2, base_speed * factor)
 
     def _maybe_update_horizontal_velocity(self, base_speed_x: float):
         """按时间片独立更新横向速度。用于实现左右随机移动。"""
+        """EN: Update the lateral velocity independently by time slice. Used to achieve left and right random movement."""
         if self.tick_count < self.next_horizontal_change_tick:
             return
 
@@ -66,6 +76,7 @@ class MovementController:
 
     def _maybe_update_vertical_velocity(self, base_speed_y: float):
         """按时间片独立更新纵向速度。用于实现上下随机移动。"""
+        """EN: Update portrait speed independently by time slice. Used to achieve up and down random movement."""
         if self.tick_count < self.next_vertical_change_tick:
             return
 
@@ -76,6 +87,7 @@ class MovementController:
 
     def place_initial(self):
         """设置桌宠初始位置。默认放在屏幕左下区域。"""
+        """EN: Set the initial position of the table pet. The default placement is in the lower left area of the screen."""
         screen = QApplication.primaryScreen()
         geometry: QRect = screen.availableGeometry()
         x = geometry.left() + int(geometry.width() * 0.15)
@@ -85,6 +97,7 @@ class MovementController:
 
     def constrain_to_screen(self):
         """约束窗口不越界。将窗口夹紧在当前屏幕可用区域内。"""
+        """EN: Constraint window is not out of bounds. Clamp the window within the available area of the current screen."""
         screen = QApplication.screenAt(self.pet.frameGeometry().center()) or QApplication.primaryScreen()
         geometry: QRect = screen.availableGeometry()
 
@@ -106,12 +119,14 @@ class MovementController:
 
     def follow_cursor_tick(self) -> tuple[bool, bool]:
         """执行一次跟随鼠标更新。返回(是否发生位移, 是否因触边被阻挡)。"""
+        """EN: Perform a follow mouse update. Returns (whether displacement occurs or is blocked by touch edges)."""
         cursor = QCursor.pos()
         target = QPoint(cursor.x() - self.pet.width() // 2, cursor.y() - self.pet.height() // 2)
 
         screen = QApplication.screenAt(self.pet.frameGeometry().center()) or QApplication.primaryScreen()
         geometry: QRect = screen.availableGeometry()
         # 跟随速度基于分辨率。使用基准速度乘以跟随倍率。
+        # EN: Follow speed is based on resolution. Use the reference speed multiplied by the following magnification.
         base_speed = self._base_speed_x(geometry)
         max_step = max(1, int(round(base_speed * FOLLOW_SPEED_MULTIPLIER)))
 
@@ -152,6 +167,7 @@ class MovementController:
 
     def auto_move_tick(self):
         """执行一次自主移动。横向与纵向独立随机执行，触边后立即反弹。"""
+        """EN: Perform an autonomous move. Execute horizontally and vertically independently and randomly, and bounce immediately after touching the edge."""
         screen = QApplication.screenAt(self.pet.frameGeometry().center()) or QApplication.primaryScreen()
         geometry: QRect = screen.availableGeometry()
         base_speed_x = self._base_speed_x(geometry)
@@ -163,6 +179,7 @@ class MovementController:
 
         now_ms = int(time.monotonic() * 1000)
         # 停顿期内不移动。触边后先停顿再允许下一次位移。
+        # EN: Do not move during the standstill period. After touching the edge, pause first before allowing the next displacement.
         if now_ms < self.pause_until_ms:
             return
 
@@ -178,6 +195,7 @@ class MovementController:
         max_y = geometry.bottom() - self.pet.height()
 
         # 触边立即反弹：位置钳制到边界，并立刻反向速度。
+        # EN: The touch immediately bounces: the position clamps to the boundary and immediately reverses the speed.
         if next_x < min_x:
             next_x = min_x
             self.velocity_x = abs(self.velocity_x)

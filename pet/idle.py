@@ -1,4 +1,5 @@
-"""该模块管理休息调度。按概率触发休息并在超时后恢复。"""
+﻿"""该模块管理休息调度。按概率触发休息并在超时后恢复。"""
+"""EN: This module manages idle scheduling, entering rest probabilistically and resuming after a timeout."""
 
 import random
 
@@ -14,9 +15,11 @@ from .config import (
 
 class IdleController:
     """这是休息控制器。通过计时器管理进入与退出。"""
+    """EN: This is the rest controller. Entry and exit through timer management."""
 
     def __init__(self, pet):
         """初始化休息计时器。分别用于判定与结束回调。"""
+        """EN: Initializes the rest timer. Used to determine and end callbacks, respectively."""
         self.pet = pet
 
         self.rest_decision_timer = QTimer(pet)
@@ -28,23 +31,28 @@ class IdleController:
 
     def start(self):
         """启动休息调度。立即安排首次休息判定。"""
+        """EN: Start the break scheduling. Schedule your first break decision now."""
         self.schedule_next_rest_decision()
 
     def schedule_next_rest_decision(self):
         """安排下一次判定。时间在配置区间内随机。"""
+        """EN: Schedule the next decision. The time is randomized within the configuration interval."""
         self.rest_decision_timer.start(random.randint(*REST_DECISION_MS_RANGE))
 
     def try_enter_rest(self):
         """尝试进入休息。满足状态条件后按概率触发。"""
+        """EN: Try entering the break. Triggered by probability after the status condition is met."""
         self.schedule_next_rest_decision()
 
         # 高优先状态不休息。拖拽或跟随时直接跳过。
+        # EN: No breaks in high-priority status. Drag and drop or follow anytime to skip directly.
         if self.pet.state.is_dragging or self.pet.state.follow_mouse:
             return
         if self.pet.state.in_rest:
             return
 
         # 停止移动时更易休息。使用更高触发概率。
+        # EN: It's easier to rest when you stop moving. Use a higher trigger probability.
         chance = REST_CHANCE_WHEN_STOPPED if not self.pet.state.move_enabled else REST_CHANCE_WHEN_MOVING
         if random.random() > chance:
             return
@@ -55,5 +63,6 @@ class IdleController:
 
     def exit_rest(self):
         """退出休息状态。清标记后恢复当前应有动画。"""
+        """EN: Exit the resting state. Restore the current animation after clearing the marker."""
         self.pet.state.exit_rest()
         self.pet._apply_state_animation()

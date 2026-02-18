@@ -1,4 +1,5 @@
-"""全局音乐播放器单例。使用 QMediaPlayer + QAudioOutput 播放 music/ 目录下的 OGG 文件。"""
+﻿"""全局音乐播放器单例。使用 QMediaPlayer + QAudioOutput 播放 music/ 目录下的 OGG 文件。"""
+# EN: Global music player singleton built on QMediaPlayer + QAudioOutput for tracks in the music directory.
 
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QUrl, Signal
 
 # Windows 下优先使用 ffmpeg 后端以支持 .ogg，并补齐 PySide6 目录到 DLL 搜索路径。
+# EN: Prefer to use the ffmpeg backend under Windows to support .ogg, and fill in the PySide6 directory to DLL search path.
 if sys.platform.startswith("win"):
     try:
         import PySide6
@@ -42,6 +44,7 @@ MODE_ICONS = {
 
 class MusicPlayer(QObject):
     """全局音乐播放器。管理播放列表、播放状态与音量控制。"""
+    """EN: Global music player. Manage playlists, playback status, and volume controls."""
 
     track_changed = Signal(int)          # 当前播放索引
     state_changed = Signal(str)          # "playing" / "paused" / "stopped"
@@ -66,6 +69,7 @@ class MusicPlayer(QObject):
         self._audio_output.setVolume(self._volume)
 
         # 信号连接
+        # EN: Signal connection
         self._player.mediaStatusChanged.connect(self._on_media_status_changed)
         self._player.playbackStateChanged.connect(self._on_playback_state_changed)
         self._player.durationChanged.connect(self._on_duration_changed)
@@ -75,10 +79,12 @@ class MusicPlayer(QObject):
 
     # ------------------------------------------------------------------
     # 播放列表初始化
+    # EN: Playlist Initialization
     # ------------------------------------------------------------------
 
     def _load_playlist(self):
         """扫描 music/ 目录，加载所有 OGG 文件。"""
+        """EN: Scan music/directory to load all OGG files."""
         music_dir = Path(MUSIC_DIR)
         if music_dir.exists():
             files = sorted(music_dir.glob("*.ogg"))
@@ -88,6 +94,7 @@ class MusicPlayer(QObject):
 
     # ------------------------------------------------------------------
     # 只读属性
+    # EN: Read-only properties
     # ------------------------------------------------------------------
 
     @property
@@ -130,10 +137,12 @@ class MusicPlayer(QObject):
 
     # ------------------------------------------------------------------
     # 播放控制
+    # EN: Play Control
     # ------------------------------------------------------------------
 
     def play(self, index: int | None = None):
         """播放指定索引（或当前索引）的歌曲。"""
+        """EN: Plays the song for the specified index (or current index)."""
         if not self._playlist:
             return
         if index is not None:
@@ -147,6 +156,7 @@ class MusicPlayer(QObject):
 
     def toggle_pause(self):
         """切换播放/暂停。"""
+        """EN: Toggle play/pause."""
         state = self._player.playbackState()
         if state == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
@@ -157,6 +167,7 @@ class MusicPlayer(QObject):
 
     def next(self):
         """切换到下一首（按播放模式决定跳转逻辑）。"""
+        """EN: Switches to the next track (decides the jump logic according to the playback mode)."""
         if not self._playlist:
             return
         n = len(self._playlist)
@@ -171,10 +182,12 @@ class MusicPlayer(QObject):
 
     def prev(self):
         """切换到上一首。"""
+        """EN: Switch to the previous one."""
         if not self._playlist:
             return
         n = len(self._playlist)
         # 若已播放 3 秒以上，先回到开头
+        # EN: If it has been played for more than 3 seconds, first go back to the beginning
         if self._player.position() > 3000:
             self._player.setPosition(0)
         else:
@@ -182,14 +195,17 @@ class MusicPlayer(QObject):
 
     def stop(self):
         """停止播放。"""
+        """EN: Stop playback"""
         self._player.stop()
 
     # ------------------------------------------------------------------
     # 音量
+    # EN: Volume
     # ------------------------------------------------------------------
 
     def set_volume(self, volume: float):
         """设置应用级音量（0.0~1.0），不影响系统音量。"""
+        """EN: Set the app-level volume (0.0~1.0) without affecting the system volume."""
         v = max(0.0, min(1.0, float(volume)))
         self._volume = v
         self._audio_output.setVolume(v)
@@ -197,32 +213,38 @@ class MusicPlayer(QObject):
 
     # ------------------------------------------------------------------
     # 播放模式
+    # EN: Playmode
     # ------------------------------------------------------------------
 
     def set_mode(self, mode: str):
         """切换播放模式。mode 为 list / single / random 之一。"""
+        """EN: Toggle playback mode. Mode is one of list/single/random."""
         if mode in (PLAY_MODE_LIST, PLAY_MODE_SINGLE, PLAY_MODE_RANDOM):
             self._play_mode = mode
             self.mode_changed.emit(mode)
 
     def cycle_mode(self):
         """循环切换播放模式：列表循环 → 单曲循环 → 随机播放 → 列表循环。"""
+        """EN: Loop Toggle Play Mode: List Loop → Single Loop → Shuffle → List Loop."""
         order = [PLAY_MODE_LIST, PLAY_MODE_SINGLE, PLAY_MODE_RANDOM]
         idx = order.index(self._play_mode) if self._play_mode in order else 0
         self.set_mode(order[(idx + 1) % len(order)])
 
     # ------------------------------------------------------------------
     # 播放列表排序
+    # EN: sorting of playlists
     # ------------------------------------------------------------------
 
     def move_track(self, from_index: int, to_index: int):
         """将索引 from_index 的歌曲移动到 to_index 位置。"""
+        """EN: Move songs indexed from_index to the to_index position."""
         n = len(self._playlist)
         if not (0 <= from_index < n and 0 <= to_index < n and from_index != to_index):
             return
         track = self._playlist.pop(from_index)
         self._playlist.insert(to_index, track)
         # 更新当前播放索引
+        # EN: Update Current Playback Index
         if self._current_index == from_index:
             self._current_index = to_index
         elif from_index < self._current_index <= to_index:
@@ -233,6 +255,7 @@ class MusicPlayer(QObject):
 
     def add_track_from_file(self, file_path: str):
         """将本地音频文件拷贝到 music/ 目录并加入播放列表。返回 (ok, message)。"""
+        """EN: Copy the local audio file to the music/directory and add it to the playlist. Returns (ok, message)."""
         try:
             src = Path(file_path).expanduser().resolve()
         except Exception:
@@ -272,6 +295,7 @@ class MusicPlayer(QObject):
 
     def remove_track(self, index: int, delete_file: bool = True):
         """删除播放列表中的歌曲。delete_file=True 时同步删除 music/ 目录文件。"""
+        """EN: Deletes songs from the playlist. delete_file = True Synchronously deletes the music/directory file."""
         n = len(self._playlist)
         if not (0 <= index < n):
             return False, "索引越界"
@@ -311,6 +335,7 @@ class MusicPlayer(QObject):
 
     def rename_track(self, index: int, new_name: str):
         """重命名播放列表歌曲，并同步修改 music/ 目录中的文件名。"""
+        """EN: Rename the playlist song and modify the file name in the music/directory synchronously."""
         n = len(self._playlist)
         if not (0 <= index < n):
             return False, "索引越界"
@@ -359,14 +384,17 @@ class MusicPlayer(QObject):
 
     # ------------------------------------------------------------------
     # 进度跳转
+    # EN: Progress Jump
     # ------------------------------------------------------------------
 
     def seek(self, position_ms: int):
         """跳转到指定毫秒位置。"""
+        """EN: Jumps to the specified millisecond position."""
         self._player.setPosition(position_ms)
 
     def dispose(self):
         """释放播放器资源与信号连接。用于应用退出时避免对象残留。"""
+        """EN: Release the player resource to connect to the signal. Used to avoid residual objects when the app exits."""
         try:
             self._player.mediaStatusChanged.disconnect(self._on_media_status_changed)
         except Exception:
@@ -404,10 +432,12 @@ class MusicPlayer(QObject):
 
     # ------------------------------------------------------------------
     # 内部槽
+    # EN: Internal Groove
     # ------------------------------------------------------------------
 
     def _on_media_status_changed(self, status: QMediaPlayer.MediaStatus):
         """媒体状态变化时自动衔接下一首。"""
+        """EN: Automatically connects to the next song when the media state changes."""
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             if self._play_mode == PLAY_MODE_SINGLE:
                 self._player.setPosition(0)
@@ -431,8 +461,10 @@ class MusicPlayer(QObject):
 
     def _on_duration_changed(self, duration_ms):
         """转发 Qt qint64 时长信号，避免签名不匹配导致连接失败。"""
+        """EN: Forward the Qt qint64 duration signal to avoid a signature mismatch causing the connection to fail."""
         self.duration_changed.emit(duration_ms)
 
     def _on_position_changed(self, position_ms):
         """转发 Qt qint64 位置信号，避免签名不匹配导致连接失败。"""
+        """EN: Forward the Qt qint64 position signal to avoid the signature mismatch causing the connection to fail."""
         self.position_changed.emit(position_ms)

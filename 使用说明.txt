@@ -64,3 +64,75 @@ Ameath Desktop Pet（Windows）使用说明
 2. 建议定期备份 music 文件夹中的自定义歌曲。
 
 祝你使用愉快！
+
+------------------------------------------------------------
+English Version
+------------------------------------------------------------
+
+Ameath Desktop Pet (Windows) User Guide
+
+1. Quick Start
+1) Double-click AmeathDesktopPet.exe in the root folder to launch.
+2) After startup, you will see both:
+   - Desktop pet window (draggable, right-click menu)
+   - Main app window (Settings / Music / About)
+3) If you close the main window, the app may still run in the system tray.
+
+2. Music Folder (you can add files manually)
+1) Music files are stored in the music folder under the app root directory.
+2) Supported formats: .ogg / .mp3 / .wav / .flac / .m4a.
+3) You can copy music files directly into the music folder.
+4) You can also import tracks from the Music page using “Add Local Tracks”.
+
+3. Basic Desktop Pet Operations
+1) Left-click and hold the pet to drag it.
+2) Right-click the pet to open the menu. Available options include:
+   - Open app window (quick access to Settings/Music/About)
+   - Stop Moving / Resume Moving
+   - Follow Mouse
+   - Scale
+   - Opacity
+   - Display Priority
+   - Instance Count
+   - Launch at Startup
+   - Close Pet
+3) While right-click menu is open, the active pet shows a sky-blue outline.
+
+4. Music Features
+1) Right-click pet -> Music: quick control for Previous / Play-Pause / Next,
+   play mode switching, and volume.
+2) The Music page provides full controls:
+   - Click a track to play
+   - Drag to reorder playlist
+   - Adjust volume and play mode
+   - Right-click track to rename (also renames the file in the music folder)
+
+5. Batch Delete Tracks (Music Page)
+1) Click “Delete Tracks” to enter delete mode.
+2) Follow the prompt and check multiple tracks in the right-side checkboxes.
+3) Click “Confirm Delete”, then choose:
+   - Remove from playlist only
+   - Remove from playlist and delete local files
+4) Click “Cancel Delete” to exit delete mode.
+
+6. Tray and Close Behavior
+1) Closing the main window may minimize to tray (depending on settings).
+2) Right-click the tray icon for “Open” or “Exit”.
+3) To fully quit, use tray “Exit” or the in-app exit button.
+
+7. FAQ
+1) No sound:
+   - Check if app volume is set to 0
+   - Check system output device
+   - Ensure playable audio files exist in the music folder
+2) New tracks do not appear:
+   - Verify file extension is supported
+   - Reopen the Music page or restart the app
+3) Cannot delete files:
+   - The file may be in use by another program; close it and retry
+
+8. Updates and Data
+1) App settings are saved in the user profile directory and persist after restart.
+2) It is recommended to back up custom tracks in the music folder regularly.
+
+Enjoy using Ameath Desktop Pet!

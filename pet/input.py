@@ -1,12 +1,15 @@
-"""该模块处理鼠标输入。覆盖拖拽、右键菜单与释放收尾逻辑。"""
+﻿"""该模块处理鼠标输入。覆盖拖拽、右键菜单与释放收尾逻辑。"""
+"""EN: This module handles mouse input, including dragging, right-click menus, and release-state cleanup."""
 
 from PySide6.QtCore import Qt
 
 
 def handle_mouse_press(pet, event) -> bool:
     """处理鼠标按下。左键进入拖拽，右键弹出菜单。"""
+    """EN: Handles mouse presses. Left click to drag, right click to pop up menu."""
     if event.button() == Qt.MouseButton.LeftButton:
         # 左键按下即进入拖拽。同时切换拖拽动画。
+        # EN: Left-click to drag. Toggle drag animation at the same time.
         pet.state.begin_drag()
         pet.drag_offset = event.globalPosition().toPoint() - pet.pos()
         pet.set_drag_animation()
@@ -15,6 +18,7 @@ def handle_mouse_press(pet, event) -> bool:
 
     if event.button() == Qt.MouseButton.RightButton:
         # 右键弹出菜单。菜单锚点取鼠标全局坐标。
+        # EN: Right-click to pop up the menu. The menu anchor takes the global coordinates of the mouse.
         pet.show_context_menu(event.globalPosition().toPoint())
         event.accept()
         return True
@@ -24,10 +28,12 @@ def handle_mouse_press(pet, event) -> bool:
 
 def handle_mouse_move(pet, event) -> bool:
     """处理鼠标移动。仅在拖拽状态下同步移动窗口。"""
+    """EN: Handles mouse movement. Synchronize moving windows only in drag-and-drop state."""
     if not pet.state.is_dragging:
         return False
 
     # 按偏移量计算新位置。鼠标全局坐标减去按下时偏移量。
+    # EN: Calculates the new position by offset. Mouse global coordinates minus offset on press.
     new_pos = event.globalPosition().toPoint() - pet.drag_offset
     pet.move(new_pos)
     pet.movement.constrain_to_screen()
@@ -37,10 +43,12 @@ def handle_mouse_move(pet, event) -> bool:
 
 def handle_mouse_release(pet, event) -> bool:
     """处理鼠标释放。结束拖拽并恢复后续状态。"""
+    """EN: Handles mouse release. End the drag and resume the follow-up state."""
     if event.button() != Qt.MouseButton.LeftButton or not pet.state.is_dragging:
         return False
 
     # 释放后尝试进入休息。失败时恢复当前状态对应动画。
+    # EN: Try to enter the break after release. Restores the animation corresponding to the current state on failure.
     pet.state.end_drag()
     pet.idle.try_enter_rest()
     if not pet.state.in_rest:
