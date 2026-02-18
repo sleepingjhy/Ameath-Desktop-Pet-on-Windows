@@ -47,6 +47,8 @@ python main.py
 
 在右键菜单与应用前端界面中新增音乐播放功能，播放 `music/` 目录下的歌曲。
 
+> 说明：仓库会保留 `music/` 目录结构，但默认不提交目录内音频文件；请自行放入本地音乐文件使用。
+
 - 修复了若干内存泄露问题。
 - 全面检查并修复了退出链路中的内存泄漏风险（菜单信号、播放器资源、定时器与列表控件清理）。
 
@@ -169,7 +171,7 @@ python main.py
 📦 Ameath_Desktop_Pet
 ├── 🐍 main.py               # 程序入口，启动桌宠事件循环
 ├── 📄 requirements.txt      # Python 依赖列表
-├── 📁 music                 # 音乐资源目录（.ogg 格式）
+├── 📁 music                 # 音乐目录（仓库仅保留目录结构，不包含音频文件）
 ├── 📁 exe
 │   ├── ⚙️ build_exe.ps1      # EXE 打包脚本（PowerShell）
 │   └── 📘 README.md          # EXE 构建与分发说明
