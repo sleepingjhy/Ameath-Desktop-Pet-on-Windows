@@ -38,6 +38,21 @@ class PetStateMachine:
         self.move_enabled = False
         self.follow_mouse = False
 
+    def start_move(self):
+        """恢复移动能力。"""
+        self.move_enabled = True
+
+    def set_move_enabled(self, enabled: bool):
+        """设置移动开关。关闭时同时关闭跟随。"""
+        if enabled:
+            self.start_move()
+            return
+        self.stop_move()
+
+    def toggle_move(self):
+        """切换移动开关。"""
+        self.set_move_enabled(not self.move_enabled)
+
     def enter_rest(self):
         """进入休息状态。仅设置休息标志位。"""
         self.in_rest = True

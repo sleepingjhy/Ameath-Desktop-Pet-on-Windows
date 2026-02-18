@@ -17,6 +17,8 @@ from .config import (
     OPACITY_DEFAULT_PERCENT,
     OPACITY_PERCENT_MAX,
     OPACITY_PERCENT_MIN,
+    SCALE_MAX,
+    SCALE_MIN,
 )
 
 
@@ -31,6 +33,8 @@ class SettingsStore:
             "display_mode": DISPLAY_MODE_ALWAYS_ON_TOP,
             "instance_count": INSTANCE_COUNT_MIN,
             "opacity_percent": OPACITY_DEFAULT_PERCENT,
+            "follow_mouse": False,
+            "scale_factor": 1.0,
         }
         self._load()
 
@@ -136,4 +140,32 @@ class SettingsStore:
             normalized = OPACITY_DEFAULT_PERCENT
         normalized = max(OPACITY_PERCENT_MIN, min(OPACITY_PERCENT_MAX, normalized))
         self.data["opacity_percent"] = normalized
+        self.save()
+
+    def get_follow_mouse(self) -> bool:
+        """读取跟随鼠标配置。"""
+        return bool(self.data.get("follow_mouse", False))
+
+    def set_follow_mouse(self, enabled: bool):
+        """更新跟随鼠标配置并保存。"""
+        self.data["follow_mouse"] = bool(enabled)
+        self.save()
+
+    def get_scale_factor(self) -> float:
+        """读取缩放配置。返回范围限制在允许区间。"""
+        value = self.data.get("scale_factor", 1.0)
+        try:
+            scale = float(value)
+        except (TypeError, ValueError):
+            scale = 1.0
+        return max(SCALE_MIN, min(SCALE_MAX, scale))
+
+    def set_scale_factor(self, scale: float):
+        """更新缩放配置并保存。保存前会裁剪到允许范围。"""
+        try:
+            normalized = float(scale)
+        except (TypeError, ValueError):
+            normalized = 1.0
+        normalized = max(SCALE_MIN, min(SCALE_MAX, normalized))
+        self.data["scale_factor"] = normalized
         self.save()

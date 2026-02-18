@@ -9,22 +9,24 @@ if getattr(sys, "frozen", False):
 else:
     ROOT_DIR = Path(__file__).resolve().parent.parent
 GIFS_DIR = ROOT_DIR / "gifs"
+MUSIC_DIR = ROOT_DIR / "music"
+RESOURCE_PREFIX = ":/gifs"
 
 # 定义应用标识与通用资源路径。
 APP_NAME = "AmeathDesktopPet"
-APP_ICON_PATH = GIFS_DIR / "ameath.ico"
-ABOUT_GIF_PATH = GIFS_DIR / "ameath.gif"
+APP_ICON_PATH = f"{RESOURCE_PREFIX}/ameath.ico"
+ABOUT_GIF_PATH = f"{RESOURCE_PREFIX}/ameath.gif"
 
 # 建立动画资源映射。按动作类别组织 GIF 文件路径。
 ASSET_PATHS = {
-    "move": GIFS_DIR / "move.gif",
-    "drag": GIFS_DIR / "drag.gif",
+    "move": f"{RESOURCE_PREFIX}/move.gif",
+    "drag": f"{RESOURCE_PREFIX}/drag.gif",
     "rest": [
-        GIFS_DIR / "ameath.gif",
-        GIFS_DIR / "idle1.gif",
-        GIFS_DIR / "idle2.gif",
-        GIFS_DIR / "idle3.gif",
-        GIFS_DIR / "idle4.gif",
+        f"{RESOURCE_PREFIX}/ameath.gif",
+        f"{RESOURCE_PREFIX}/idle1.gif",
+        f"{RESOURCE_PREFIX}/idle2.gif",
+        f"{RESOURCE_PREFIX}/idle3.gif",
+        f"{RESOURCE_PREFIX}/idle4.gif",
     ],
 }
 
@@ -39,7 +41,7 @@ DISPLAY_MODE_FULLSCREEN_HIDE = "fullscreen_hide"
 DISPLAY_MODE_DESKTOP_ONLY = "desktop_only"
 
 # 定义实例数量限制。用于多开桌宠的数量校验。
-INSTANCE_COUNT_MIN = 1
+INSTANCE_COUNT_MIN = 0
 INSTANCE_COUNT_MAX = 50
 
 # 定义透明度参数。设置页支持 0~100，无级滑动；右键菜单支持 10~100，步进 10。
@@ -59,6 +61,9 @@ EDGE_PAUSE_MS = 500
 
 # 定义开机自启键名。用于写入 Windows Run 注册表项。
 APP_AUTOSTART_NAME = "DesktopPetAmeath"
+
+# 定义音乐播放器默认参数。
+MUSIC_DEFAULT_VOLUME = 0.5
 
 # 定义随机休息参数。控制休息判定频率、休息时长和触发概率。
 REST_DECISION_MS_RANGE = (3500, 9000)

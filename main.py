@@ -1,13 +1,14 @@
 """这是应用入口模块。负责初始化桌宠窗口、主界面与系统托盘。"""
 
 import sys
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from pet.app_window import AppWindow
 from pet.close_policy import ClosePolicyManager
 from pet.config import APP_ICON_PATH
 from pet.instance_manager import PetInstanceManager
+from pet.music_player import MusicPlayer
 from pet.settings_store import SettingsStore
 from pet.tray_controller import TrayController
 from pet.window import DesktopPet
@@ -20,9 +21,17 @@ def main():
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(QIcon(str(APP_ICON_PATH)))
 
+    app_font: QFont = app.font()
+    if app_font.pointSize() <= 0:
+        app_font.setPointSize(10)
+        app.setFont(app_font)
+
     # 初始化设置存储与关闭策略。
     settings_store = SettingsStore()
     close_policy = ClosePolicyManager(settings_store)
+
+    # 初始化音乐播放器单例。
+    music_player = MusicPlayer()
 
     # 准备退出防重入标志。
     is_quitting = False
@@ -41,6 +50,7 @@ def main():
             on_request_quit=request_quit,
             close_policy=close_policy,
             instance_manager=manager,
+            music_player=music_player,
         )
         manager.register_pet(pet)
 
@@ -58,18 +68,28 @@ def main():
         is_quitting = True
 
         if manager is not None:
-            for pet in manager.pets:
-                if hasattr(pet, "prepare_for_exit") and callable(pet.prepare_for_exit):
-                    pet.prepare_for_exit()
-                if hasattr(pet, "close") and callable(pet.close):
-                    pet.close()
+            if hasattr(manager, "shutdown") and callable(manager.shutdown):
+                manager.shutdown()
+            else:
+                for pet in manager.pets:
+                    if hasattr(pet, "prepare_for_exit") and callable(pet.prepare_for_exit):
+                        pet.prepare_for_exit()
+                    if hasattr(pet, "close") and callable(pet.close):
+                        pet.close()
 
         if app_window is not None:
             if hasattr(app_window, "prepare_for_exit") and callable(app_window.prepare_for_exit):
                 app_window.prepare_for_exit()
+            if hasattr(app_window, "close") and callable(app_window.close):
+                app_window.close()
+            if hasattr(app_window, "deleteLater") and callable(app_window.deleteLater):
+                app_window.deleteLater()
 
         if tray_controller is not None:
             tray_controller.hide()
+
+        if music_player is not None and hasattr(music_player, "dispose") and callable(music_player.dispose):
+            music_player.dispose()
 
         app.quit()
 
@@ -80,7 +100,7 @@ def main():
         app_window.show_window()
 
     # 初始化多开管理器，并创建首个桌宠实例。
-    manager = PetInstanceManager(settings_store=settings_store, request_quit=request_quit)
+    manager = PetInstanceManager(settings_store=settings_store, request_quit=request_quit, music_player=music_player)
     manager.set_spawn_callback(create_pet)
     create_pet()
 
@@ -91,6 +111,7 @@ def main():
         close_policy=close_policy,
         request_quit=request_quit,
         tray_controller=None,
+        music_player=music_player,
     )
 
     # 初始化系统托盘并显示。

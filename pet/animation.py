@@ -19,6 +19,9 @@ class GifLabel(QLabel):
 
     def set_movie(self, movie: QMovie):
         """切换当前 GIF。切换时同步重连帧变化回调。"""
+        if self._movie is movie:
+            return
+
         if self._movie is not None:
             try:
                 # 先解绑旧信号。避免重复连接导致重复刷新。
@@ -31,6 +34,20 @@ class GifLabel(QLabel):
         self._movie.frameChanged.connect(self._on_frame_changed)
         self._movie.start()
         self._resize_to_frame()
+        self.update()
+
+    def clear_movie(self):
+        """清理当前 GIF 引用并解除帧信号绑定。"""
+        if self._movie is None:
+            return
+
+        try:
+            self._movie.frameChanged.disconnect(self._on_frame_changed)
+        except (RuntimeError, TypeError):
+            pass
+
+        self._movie = None
+        self.clear()
         self.update()
 
     def set_mirror(self, mirror: bool):
@@ -106,7 +123,7 @@ class GifLabel(QLabel):
 def create_movie(path):
     """创建 QMovie 实例。统一配置缓存和播放速度。"""
     movie = QMovie(str(path))
-    # 开启帧缓存。减少重复读取带来的开销。
-    movie.setCacheMode(QMovie.CacheMode.CacheAll)
+    # 采用按需解码缓存，降低多实例与频繁动作切换时的内存占用。
+    movie.setCacheMode(QMovie.CacheMode.CacheNone)
     movie.setSpeed(100)
     return movie

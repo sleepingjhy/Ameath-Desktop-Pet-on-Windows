@@ -1,7 +1,12 @@
 """该模块是桌宠主窗口。整合动画、输入、状态机、菜单与控制器。"""
-
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox, QWidget
+from PySide6.QtCore import QFile
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox, QWidget
+from PySide6.QtCore import QFile
 
 from .animation import GifLabel, create_movie
 from .autostart import is_autostart_enabled, set_autostart_enabled
@@ -17,7 +22,7 @@ from .config import (
 )
 from .idle import IdleController
 from .input import handle_mouse_move, handle_mouse_press, handle_mouse_release
-from .menu import build_context_menu
+from .menu import build_context_menu, sync_context_menu_state
 from .movement import MovementController
 from .state_machine import PetStateMachine
 
@@ -31,8 +36,9 @@ class DesktopPet(QWidget):
     display_mode_changed = Signal(str)
     instance_count_changed = Signal(int)
     opacity_changed = Signal(int)
+    move_enabled_changed = Signal(bool)
 
-    def __init__(self, on_open_main=None, on_request_quit=None, close_policy=None, instance_manager=None):
+    def __init__(self, on_open_main=None, on_request_quit=None, close_policy=None, instance_manager=None, music_player=None):
         """完成主窗口初始化。包括资源校验、控制器构造和定时器启动。"""
         super().__init__()
 
@@ -47,6 +53,7 @@ class DesktopPet(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
 
         self.label = GifLabel(self)
         # 预加载移动/拖拽动画与休息动画集合。
@@ -55,6 +62,10 @@ class DesktopPet(QWidget):
             "drag": create_movie(ASSET_PATHS["drag"]),
         }
         self.rest_movies = [create_movie(path) for path in ASSET_PATHS["rest"]]
+        for movie in self.movies.values():
+            movie.setParent(self)
+        for movie in self.rest_movies:
+            movie.setParent(self)
 
         self.state = PetStateMachine()
         self.scale_factor = 1.0
@@ -62,6 +73,7 @@ class DesktopPet(QWidget):
         self.drag_offset = QPoint(0, 0)
         self.facing_left = False
         self.active_menu = None
+        self._context_menu = None
         self.menu_anchor_offset = QPoint(0, 0)
         self.menu_last_pet_pos = QPoint(0, 0)
         self.follow_blocked = False
@@ -71,6 +83,10 @@ class DesktopPet(QWidget):
         self.tray_controller = None
         self._is_exiting = False
         self.instance_manager = instance_manager
+        self.music_player = music_player
+        self._menu_open: bool = False
+        self._always_on_top = True
+        self._force_topmost_for_multi = False
 
         self.movement = MovementController(self)
         self.idle = IdleController(self)
@@ -88,13 +104,19 @@ class DesktopPet(QWidget):
 
     def _assert_assets(self):
         """校验动画资源完整性。缺失时抛出带列表的异常。"""
+        def asset_exists(asset) -> bool:
+            asset_text = str(asset)
+            if asset_text.startswith(":/"):
+                return QFile.exists(asset_text)
+            return QFile.exists(asset_text)
+
         missing = []
         for key, value in ASSET_PATHS.items():
             if isinstance(value, list):
                 for path in value:
-                    if not path.exists():
+                    if not asset_exists(path):
                         missing.append(str(path))
-            elif not value.exists():
+            elif not asset_exists(value):
                 missing.append(str(value))
 
         if missing:
@@ -164,23 +186,61 @@ class DesktopPet(QWidget):
         self.state.exit_rest()
         self.follow_blocked = False
         self.follow_changed.emit(self.state.follow_mouse)
+        self.move_enabled_changed.emit(self.state.move_enabled)
         self.idle.try_enter_rest()
         if not self.state.in_rest:
             self._set_animation("move", mirror=self.facing_left)
 
     def on_stop_move(self, checked=False):
-        """处理停止移动菜单事件。优先委托实例管理器。"""
-        if self.instance_manager is not None:
-            self.instance_manager.on_stop_move()
+        """兼容入口：切换全部实例移动状态。"""
+        if self.instance_manager is not None and hasattr(self.instance_manager, "on_toggle_move_all"):
+            self.instance_manager.on_toggle_move_all()
             return
 
+        self.on_toggle_move_current()
+
+    def apply_resume_move(self):
+        """本地执行恢复移动。仅操作当前实例，不做跨实例传播。"""
+        self.state.start_move()
+        self.state.exit_rest()
+        self.follow_blocked = False
+        self.move_enabled_changed.emit(self.state.move_enabled)
+        self._apply_state_animation()
+
+    def apply_move_enabled(self, enabled: bool):
+        """本地应用移动开关。"""
+        if bool(enabled):
+            self.apply_resume_move()
+            return
         self.apply_stop_move()
+
+    def on_toggle_move_current(self, checked=False):
+        """右键菜单入口：仅切换当前实例移动状态。"""
+        self.apply_move_enabled(not self.state.move_enabled)
+
+    def on_set_move_enabled(self, enabled: bool):
+        """设置移动状态。优先委托实例管理器。"""
+        if self.instance_manager is not None:
+            if hasattr(self.instance_manager, "on_set_move_enabled_all"):
+                self.instance_manager.on_set_move_enabled_all(bool(enabled))
+            return
+
+        self.apply_move_enabled(bool(enabled))
+
+    def get_move_enabled(self) -> bool:
+        """读取移动开关状态。"""
+        if self.instance_manager is not None and hasattr(self.instance_manager, "get_move_enabled"):
+            return bool(self.instance_manager.get_move_enabled())
+        return bool(self.state.move_enabled)
 
     def apply_follow_enabled(self, enabled: bool):
         """本地应用跟随状态。"""
+        before_move_enabled = bool(self.state.move_enabled)
         self.state.set_follow_mouse(bool(enabled))
         self.follow_blocked = False
         self.follow_changed.emit(self.state.follow_mouse)
+        if before_move_enabled != bool(self.state.move_enabled):
+            self.move_enabled_changed.emit(self.state.move_enabled)
         self._apply_state_animation()
 
     def on_toggle_follow(self, checked=False):
@@ -251,6 +311,35 @@ class DesktopPet(QWidget):
 
         if self.active_menu is not None:
             self.active_menu.close()
+            if self.active_menu is not self._context_menu:
+                self.active_menu.deleteLater()
+            self.active_menu = None
+
+        if self._context_menu is not None:
+            try:
+                self._context_menu.aboutToHide.disconnect(self._on_menu_hide)
+            except Exception:
+                pass
+            self._context_menu.close()
+            self._context_menu.deleteLater()
+            self._context_menu = None
+
+        if hasattr(self, "label") and hasattr(self.label, "clear_movie"):
+            self.label.clear_movie()
+
+        all_movies = list(self.movies.values()) + list(self.rest_movies)
+        for movie in all_movies:
+            try:
+                movie.stop()
+            except Exception:
+                pass
+            try:
+                movie.deleteLater()
+            except Exception:
+                pass
+
+        self.movies.clear()
+        self.rest_movies.clear()
 
     def apply_autostart(self, enabled: bool):
         """本地应用开机自启设置。"""
@@ -324,10 +413,23 @@ class DesktopPet(QWidget):
 
     def set_always_on_top(self, enabled: bool):
         """动态切换置顶标志，并保持窗口可见状态。"""
+        self._always_on_top = bool(enabled)
+        self._apply_topmost_state()
+
+    def set_force_topmost_for_multi(self, enabled: bool):
+        """多开时临时强制置顶。不修改用户显示优先级配置。"""
+        self._force_topmost_for_multi = bool(enabled)
+        self._apply_topmost_state()
+
+    def _apply_topmost_state(self):
+        """应用最终置顶状态：用户设置 OR 多开临时置顶。"""
+        should_topmost = self._always_on_top or self._force_topmost_for_multi
         was_visible = self.isVisible()
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, bool(enabled))
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, should_topmost)
         if was_visible:
             self.show()
+            if should_topmost:
+                self.raise_()
 
     def on_set_instance_count(self, count: int):
         """设置实例数量。优先委托实例管理器。"""
@@ -420,46 +522,49 @@ class DesktopPet(QWidget):
 
     def build_menu(self):
         """创建右键菜单。菜单项由独立模块构建。"""
-        return build_context_menu(self)
+        if self._context_menu is None:
+            self._context_menu = build_context_menu(self, self.music_player)
+            self._context_menu.aboutToHide.connect(self._on_menu_hide)
+        sync_context_menu_state(self._context_menu, self, self.music_player)
+        return self._context_menu
 
     def show_context_menu(self, global_pos):
-        """在鼠标处弹出菜单。记录偏移以支持菜单随桌宠移动。"""
-        if self.active_menu is not None:
-            self.active_menu.close()
-
-        # 记录菜单与桌宠相对关系。后续按位移增量同步菜单。
+        """在鼠标处弹出菜单。菜单位置固定，弹出实例显示描边。"""
         self.active_menu = self.build_menu()
-        self.menu_anchor_offset = global_pos - self.pos()
-        self.menu_last_pet_pos = QPoint(self.pos())
-        self.active_menu.aboutToHide.connect(self._clear_context_menu)
+        # 显示天蓝色描边
+        self._menu_open = True
+        self.update()
         self.active_menu.popup(global_pos)
+
+    def _on_menu_hide(self):
+        """菜单关闭时取消描边。"""
+        self._menu_open = False
+        self.update()
 
     def _clear_context_menu(self):
         """清理菜单引用。菜单关闭后释放当前活动菜单句柄。"""
         self.active_menu = None
 
     def _sync_context_menu_position(self):
-        """同步菜单位置。主菜单与可见二级菜单都随桌宠平移。"""
-        if self.active_menu is None or not self.active_menu.isVisible():
-            return
-
-        # 使用增量平移菜单。可减少子菜单抖动与错位。
-        delta = self.pos() - self.menu_last_pet_pos
-        if delta.isNull():
-            return
-
-        self.active_menu.move(self.active_menu.pos() + delta)
-
-        for sub_menu in self.active_menu.findChildren(QMenu):
-            if sub_menu.isVisible():
-                sub_menu.move(sub_menu.pos() + delta)
-
-        self.menu_last_pet_pos = QPoint(self.pos())
+        """同步菜单位置。保留方法以兼容外部调用，但菜单已不跟随移动。"""
+        pass
 
     def moveEvent(self, event):
-        """处理窗口移动事件。移动后立即同步菜单坐标。"""
+        """处理窗口移动事件。"""
         super().moveEvent(event)
-        self._sync_context_menu_position()
+
+    def paintEvent(self, event):
+        """绘制窗口。菜单开启时在边缘绘制天蓝色描边。"""
+        super().paintEvent(event)
+        if self._menu_open:
+            painter = QPainter(self)
+            pen = QPen(QColor("#00BFFF"))
+            pen.setWidth(3)
+            painter.setPen(pen)
+            # 描边紧贴内边缘（各边各内缩 1px以内）
+            rect = self.rect().adjusted(1, 1, -2, -2)
+            painter.drawRect(rect)
+            painter.end()
 
     def mousePressEvent(self, event):
         """处理鼠标按下事件。优先交给输入模块消费。"""

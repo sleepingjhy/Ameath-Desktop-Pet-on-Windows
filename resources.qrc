@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="/gifs">
+    <file alias="ameath.gif">gifs/ameath.gif</file>
+    <file alias="ameath.ico">gifs/ameath.ico</file>
+    <file alias="drag.gif">gifs/drag.gif</file>
+    <file alias="idle1.gif">gifs/idle1.gif</file>
+    <file alias="idle2.gif">gifs/idle2.gif</file>
+    <file alias="idle3.gif">gifs/idle3.gif</file>
+    <file alias="idle4.gif">gifs/idle4.gif</file>
+    <file alias="move.gif">gifs/move.gif</file>
+  </qresource>
+</RCC>

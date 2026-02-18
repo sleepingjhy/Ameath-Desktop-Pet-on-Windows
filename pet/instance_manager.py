@@ -7,6 +7,7 @@ import random
 from ctypes import wintypes
 
 from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtWidgets import QApplication
 
 from .autostart import is_autostart_enabled
 from .config import (
@@ -26,6 +27,7 @@ class _ManagerState:
 
     def __init__(self):
         self.follow_mouse = False
+        self.move_enabled = True
 
 
 class RECT(ctypes.Structure):
@@ -37,6 +39,11 @@ class RECT(ctypes.Structure):
         ("right", ctypes.c_long),
         ("bottom", ctypes.c_long),
     ]
+
+
+GWL_STYLE = -16
+WS_CAPTION = 0x00C00000
+WS_THICKFRAME = 0x00040000
 
 
 class MONITORINFO(ctypes.Structure):
@@ -59,15 +66,18 @@ class PetInstanceManager(QObject):
     display_mode_changed = Signal(str)
     instance_count_changed = Signal(int)
     opacity_changed = Signal(int)
+    move_enabled_changed = Signal(bool)
 
-    def __init__(self, settings_store, request_quit):
+    def __init__(self, settings_store, request_quit, music_player=None):
         """初始化全局状态、实例容器和显示策略轮询。"""
         super().__init__()
         self.settings_store = settings_store
         self.request_quit = request_quit
+        self.music_player = music_player
 
         self.state = _ManagerState()
-        self.scale_factor: float = 1.0
+        self.state.follow_mouse = self.settings_store.get_follow_mouse()
+        self.scale_factor: float = self.settings_store.get_scale_factor()
         self.display_mode: str = self.settings_store.get_display_mode()
         self.target_count: int = self.settings_store.get_instance_count()
         self.opacity_percent: int = self.settings_store.get_opacity_percent()
@@ -77,9 +87,15 @@ class PetInstanceManager(QObject):
         self._user32 = getattr(ctypes, "windll", None).user32 if hasattr(ctypes, "windll") else None
 
         self._display_timer = QTimer(self)
-        self._display_timer.setInterval(250)
+        self._display_timer.setInterval(50)
         self._display_timer.timeout.connect(self._apply_display_policy)
         self._display_timer.start()
+        self._last_should_show = True
+
+        self._collision_timer = QTimer(self)
+        self._collision_timer.setInterval(45)
+        self._collision_timer.timeout.connect(self._resolve_pet_collisions)
+        self._collision_timer.start()
 
     @property
     def pets(self):
@@ -94,6 +110,11 @@ class PetInstanceManager(QObject):
         self._pets.append(pet)
         pet.instance_manager = self
 
+        if len(self._pets) > 1:
+            self._relocate_pet_avoid_overlap(pet)
+
+        if hasattr(pet, "apply_move_enabled"):
+            pet.apply_move_enabled(self.state.move_enabled)
         if hasattr(pet, "apply_follow_enabled"):
             pet.apply_follow_enabled(self.state.follow_mouse)
         if hasattr(pet, "apply_scale"):
@@ -103,24 +124,164 @@ class PetInstanceManager(QObject):
         if hasattr(pet, "apply_opacity_percent"):
             pet.apply_opacity_percent(self.opacity_percent)
         if hasattr(pet, "set_always_on_top"):
-            pet.set_always_on_top(self.display_mode == DISPLAY_MODE_ALWAYS_ON_TOP)
+            pet.set_always_on_top(True)
+
+        self._sync_multi_open_topmost()
 
         self._safe_show_or_hide_pet(pet, self._should_show_pets())
+
+    def _relocate_pet_avoid_overlap(self, pet):
+        """为新实例寻找不重叠位置，避免与已有桌宠重合生成。"""
+        others = [p for p in self._pets if p is not pet]
+        if not others:
+            return
+
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+
+        geometry = screen.availableGeometry()
+        width = max(1, pet.width())
+        height = max(1, pet.height())
+        step_x = max(24, int(width * 0.8))
+        step_y = max(24, int(height * 0.8))
+
+        base = others[-1].pos()
+        max_cols = max(1, (geometry.width() - width) // step_x)
+        max_rows = max(1, (geometry.height() - height) // step_y)
+
+        for index in range(max_cols * max_rows + 1):
+            col = index % max_cols
+            row = index // max_cols
+            x = geometry.left() + ((base.x() - geometry.left()) + col * step_x) % max(1, geometry.width() - width)
+            y = geometry.top() + ((base.y() - geometry.top()) + row * step_y) % max(1, geometry.height() - height)
+
+            candidate_rect = pet.frameGeometry()
+            candidate_rect.moveTo(x, y)
+            overlap = any(candidate_rect.intersects(other.frameGeometry()) for other in others)
+            if not overlap:
+                pet.move(x, y)
+                if hasattr(pet, "movement") and hasattr(pet.movement, "_sync_float_position"):
+                    pet.movement._sync_float_position()
+                return
+
+        fallback_x = min(max(geometry.left(), base.x() + step_x), geometry.right() - width)
+        fallback_y = min(max(geometry.top(), base.y() + step_y), geometry.bottom() - height)
+        pet.move(fallback_x, fallback_y)
+        if hasattr(pet, "movement") and hasattr(pet.movement, "_sync_float_position"):
+            pet.movement._sync_float_position()
+
+    def _resolve_pet_collisions(self):
+        """处理多桌宠碰撞。碰撞后反向移动并分离重叠区域。"""
+        if len(self._pets) < 2:
+            return
+
+        pets = [p for p in self._pets if hasattr(p, "movement")]
+        for i in range(len(pets)):
+            left_pet = pets[i]
+            if getattr(left_pet.state, "is_dragging", False):
+                continue
+
+            left_rect = left_pet.frameGeometry()
+            for j in range(i + 1, len(pets)):
+                right_pet = pets[j]
+                if getattr(right_pet.state, "is_dragging", False):
+                    continue
+
+                right_rect = right_pet.frameGeometry()
+                if not left_rect.intersects(right_rect):
+                    continue
+
+                self._bounce_two_pets(left_pet, right_pet, left_rect, right_rect)
+                left_rect = left_pet.frameGeometry()
+
+    def _bounce_two_pets(self, first_pet, second_pet, first_rect, second_rect):
+        """执行两实例碰撞反弹与位置分离。"""
+        intersection = first_rect.intersected(second_rect)
+        if intersection.isEmpty():
+            return
+
+        overlap_w = intersection.width()
+        overlap_h = intersection.height()
+
+        if overlap_w <= overlap_h:
+            shift = max(1, overlap_w // 2 + 1)
+            if first_rect.center().x() <= second_rect.center().x():
+                first_dx = -shift
+                second_dx = shift
+            else:
+                first_dx = shift
+                second_dx = -shift
+            first_dy = 0
+            second_dy = 0
+        else:
+            shift = max(1, overlap_h // 2 + 1)
+            if first_rect.center().y() <= second_rect.center().y():
+                first_dy = -shift
+                second_dy = shift
+            else:
+                first_dy = shift
+                second_dy = -shift
+            first_dx = 0
+            second_dx = 0
+
+        self._move_pet_by_delta(first_pet, first_dx, first_dy)
+        self._move_pet_by_delta(second_pet, second_dx, second_dy)
+
+        first_pet.movement.velocity_x = -first_pet.movement.velocity_x
+        first_pet.movement.velocity_y = -first_pet.movement.velocity_y
+        second_pet.movement.velocity_x = -second_pet.movement.velocity_x
+        second_pet.movement.velocity_y = -second_pet.movement.velocity_y
+
+        first_pet.facing_left = first_pet.movement.velocity_x < 0
+        second_pet.facing_left = second_pet.movement.velocity_x < 0
+        first_pet._apply_state_animation()
+        second_pet._apply_state_animation()
+
+    def _move_pet_by_delta(self, pet, dx: int, dy: int):
+        """按位移调整实例位置并约束屏幕边界。"""
+        pet.move(pet.x() + dx, pet.y() + dy)
+        if hasattr(pet, "movement"):
+            pet.movement.constrain_to_screen()
+            if hasattr(pet.movement, "_sync_float_position"):
+                pet.movement._sync_float_position()
 
     def unregister_pet(self, pet):
         """注销桌宠实例。"""
         if pet in self._pets:
             self._pets.remove(pet)
+            self._sync_multi_open_topmost()
+
+    def _sync_multi_open_topmost(self):
+        """多开(>=2)时所有实例临时置顶，单实例时恢复为用户显示优先级。"""
+        force_topmost = len(self._pets) >= 2
+        for pet in list(self._pets):
+            if hasattr(pet, "set_force_topmost_for_multi"):
+                pet.set_force_topmost_for_multi(force_topmost)
 
     def set_spawn_callback(self, callback):
         """设置补齐实例时的创建回调。"""
         self._spawn_callback = callback
 
     def on_stop_move(self):
-        """停止所有实例移动。仅调用本地执行方法，避免二次传播。"""
+        """兼容入口：切换全部实例停止/恢复移动。"""
+        self.on_toggle_move_all()
+
+    def on_toggle_move_all(self):
+        """切换全部实例移动状态。"""
+        self.on_set_move_enabled_all(not self.state.move_enabled)
+
+    def on_set_move_enabled_all(self, enabled: bool):
+        """设置全部实例移动状态并同步广播。"""
+        self.state.move_enabled = bool(enabled)
         for pet in list(self._pets):
-            if hasattr(pet, "apply_stop_move"):
-                pet.apply_stop_move()
+            if hasattr(pet, "apply_move_enabled"):
+                pet.apply_move_enabled(self.state.move_enabled)
+        self.move_enabled_changed.emit(self.state.move_enabled)
+
+    def get_move_enabled(self) -> bool:
+        """返回当前全局移动开关状态。"""
+        return bool(self.state.move_enabled)
 
     def on_toggle_follow(self):
         """切换全局跟随状态。"""
@@ -129,6 +290,7 @@ class PetInstanceManager(QObject):
     def on_set_follow(self, enabled):
         """设置全局跟随状态并同步所有实例。"""
         self.state.follow_mouse = bool(enabled)
+        self.settings_store.set_follow_mouse(self.state.follow_mouse)
         for pet in list(self._pets):
             if hasattr(pet, "apply_follow_enabled"):
                 pet.apply_follow_enabled(self.state.follow_mouse)
@@ -142,6 +304,7 @@ class PetInstanceManager(QObject):
             return
 
         self.scale_factor = normalized
+        self.settings_store.set_scale_factor(normalized)
         for pet in list(self._pets):
             if hasattr(pet, "apply_scale"):
                 pet.apply_scale(self.scale_factor)
@@ -196,10 +359,9 @@ class PetInstanceManager(QObject):
         self.display_mode = mode
         self.settings_store.set_display_mode(mode)
 
-        always_on_top = mode == DISPLAY_MODE_ALWAYS_ON_TOP
         for pet in list(self._pets):
             if hasattr(pet, "set_always_on_top"):
-                pet.set_always_on_top(always_on_top)
+                pet.set_always_on_top(True)
 
         self.display_mode_changed.emit(self.display_mode)
         self._apply_display_policy()
@@ -243,9 +405,6 @@ class PetInstanceManager(QObject):
             return
 
         self._close_pet_instance(pet)
-        if not self._pets:
-            self.request_quit()
-            return
         self._update_target_to_current_count()
 
     def close_random_pets(self, count: int, update_target=True):
@@ -267,9 +426,6 @@ class PetInstanceManager(QObject):
             self._close_pet_instance(pet)
 
         if update_target:
-            if not self._pets:
-                self.request_quit()
-                return
             self._update_target_to_current_count()
 
     def close_all_pets(self):
@@ -296,14 +452,69 @@ class PetInstanceManager(QObject):
                 pet.prepare_for_exit()
             if hasattr(pet, "close") and callable(pet.close):
                 pet.close()
+            if hasattr(pet, "deleteLater") and callable(pet.deleteLater):
+                pet.deleteLater()
+        except Exception:
+            pass
+
+    def shutdown(self):
+        """停止管理器计时器并释放所有桌宠实例。"""
+        self._spawn_callback = None
+
+        if self._display_timer.isActive():
+            self._display_timer.stop()
+        if self._collision_timer.isActive():
+            self._collision_timer.stop()
+
+        try:
+            self._display_timer.timeout.disconnect(self._apply_display_policy)
+        except Exception:
+            pass
+        try:
+            self._collision_timer.timeout.disconnect(self._resolve_pet_collisions)
+        except Exception:
+            pass
+
+        pets = list(self._pets)
+        self._pets.clear()
+        for pet in pets:
+            try:
+                if hasattr(pet, "prepare_for_exit") and callable(pet.prepare_for_exit):
+                    pet.prepare_for_exit()
+                if hasattr(pet, "close") and callable(pet.close):
+                    pet.close()
+                if hasattr(pet, "deleteLater") and callable(pet.deleteLater):
+                    pet.deleteLater()
+            except Exception:
+                pass
+
+        try:
+            self._display_timer.deleteLater()
+            self._collision_timer.deleteLater()
         except Exception:
             pass
 
     def _apply_display_policy(self):
         """按显示模式定时控制实例可见性。异常时默认显示。"""
         should_show = self._should_show_pets()
+
+        # 从全屏隐藏恢复到可显示时，强制恢复全部实例显示，避免遗漏。
+        if should_show and not self._last_should_show:
+            self._restore_all_hidden_pets()
+
         for pet in list(self._pets):
             self._safe_show_or_hide_pet(pet, should_show)
+
+        self._last_should_show = should_show
+
+    def _restore_all_hidden_pets(self):
+        """恢复所有已隐藏实例的可见状态。"""
+        for pet in list(self._pets):
+            try:
+                if hasattr(pet, "isVisible") and not pet.isVisible():
+                    pet.show()
+            except Exception:
+                pass
 
     def _safe_show_or_hide_pet(self, pet, should_show: bool):
         """安全执行显示/隐藏。异常时回退为显示。"""
@@ -328,12 +539,56 @@ class PetInstanceManager(QObject):
 
         try:
             if self.display_mode == DISPLAY_MODE_FULLSCREEN_HIDE:
-                return not self._is_foreground_fullscreen()
+                return not self._is_top_visible_window_blocking()
             if self.display_mode == DISPLAY_MODE_DESKTOP_ONLY:
                 return self._is_foreground_desktop_window()
             return True
         except Exception:
             return True
+
+    def _is_top_visible_window_blocking(self) -> bool:
+        """判断当前顶层可见非最小化窗口是否应触发隐藏（全屏或最大化）。"""
+        hwnd = self._get_top_visible_window()
+        if not hwnd:
+            return False
+
+        return self._is_window_fullscreen(hwnd) or self._is_window_maximized(hwnd)
+
+    def _is_window_maximized(self, hwnd) -> bool:
+        """判断指定窗口是否为最大化状态。"""
+        if not hwnd or self._user32 is None:
+            return False
+        try:
+            return bool(self._user32.IsZoomed(hwnd))
+        except Exception:
+            return False
+
+    def _get_top_visible_window(self):
+        """获取当前顶层可见且未最小化的窗口句柄。"""
+        if self._user32 is None:
+            return 0
+
+        hwnd = self._user32.GetTopWindow(0)
+        gw_hwndnext = 2
+        while hwnd:
+            if not self._user32.IsWindow(hwnd):
+                hwnd = self._user32.GetWindow(hwnd, gw_hwndnext)
+                continue
+            if not self._user32.IsWindowVisible(hwnd):
+                hwnd = self._user32.GetWindow(hwnd, gw_hwndnext)
+                continue
+            if self._user32.IsIconic(hwnd):
+                hwnd = self._user32.GetWindow(hwnd, gw_hwndnext)
+                continue
+
+            class_name = self._get_class_name(hwnd)
+            if class_name in {"Progman", "WorkerW"}:
+                hwnd = self._user32.GetWindow(hwnd, gw_hwndnext)
+                continue
+
+            return hwnd
+
+        return 0
 
     def _is_foreground_desktop_window(self) -> bool:
         """判断前台窗口是否为桌面窗口（Progman/WorkerW）。"""
@@ -350,9 +605,24 @@ class PetInstanceManager(QObject):
         if not hwnd:
             return False
 
+        return self._is_window_fullscreen(hwnd)
+
+    def _is_window_fullscreen(self, hwnd) -> bool:
+        """判断指定窗口是否处于全屏状态。"""
+        if not hwnd:
+            return False
+
         class_name = self._get_class_name(hwnd)
         if class_name in {"Progman", "WorkerW"}:
             return False
+
+        # 窗口化（有标题栏/可调整边框）即使尺寸很大，也不按“全屏隐藏”处理。
+        try:
+            style = self._user32.GetWindowLongW(hwnd, GWL_STYLE)
+            if style & (WS_CAPTION | WS_THICKFRAME):
+                return False
+        except Exception:
+            pass
 
         rect = RECT()
         if not self._user32.GetWindowRect(hwnd, ctypes.byref(rect)):

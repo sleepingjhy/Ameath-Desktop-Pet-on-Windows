@@ -9,11 +9,8 @@ from PySide6.QtWidgets import QApplication
 
 from .config import (
     CROSS_SCREEN_SECONDS,
-    EDGE_PAUSE_MS,
     FOLLOW_SPEED_MULTIPLIER,
     MOVE_TICK_MS,
-    VERTICAL_CHANGE_TICK_RANGE,
-    VERTICAL_SPEED_FACTOR,
 )
 
 
@@ -29,6 +26,8 @@ class MovementController:
         self.float_y = float(pet.y())
         self.pause_until_ms = 0
         self.tick_count = 0
+        self.direction_change_interval_ticks = max(1, int(round(3000 / MOVE_TICK_MS)))
+        self.next_horizontal_change_tick = 0
         self.next_vertical_change_tick = 0
 
     def _sync_float_position(self):
@@ -44,15 +43,36 @@ class MovementController:
         ticks = max(1.0, (CROSS_SCREEN_SECONDS * 1000.0) / MOVE_TICK_MS)
         return max(0.2, travel_px / ticks)
 
-    def _maybe_update_vertical_velocity(self, base_speed_x: float):
-        """按时间片更新纵向速度。用于实现随机上下移动。"""
+    def _base_speed_y(self, geometry: QRect) -> float:
+        """按分辨率计算纵向基准速度。目标是约 20 秒纵穿可用高度。"""
+        travel_px = max(1, geometry.height() - self.pet.height())
+        ticks = max(1.0, (CROSS_SCREEN_SECONDS * 1000.0) / MOVE_TICK_MS)
+        return max(0.2, travel_px / ticks)
+
+    def _randomized_speed(self, base_speed: float) -> float:
+        """在基准速度上应用随机浮动。范围为 0.8x~1.2x。"""
+        factor = random.uniform(0.8, 1.2)
+        return max(0.2, base_speed * factor)
+
+    def _maybe_update_horizontal_velocity(self, base_speed_x: float):
+        """按时间片独立更新横向速度。用于实现左右随机移动。"""
+        if self.tick_count < self.next_horizontal_change_tick:
+            return
+
+        horizontal_speed = self._randomized_speed(base_speed_x)
+        direction = random.choice([-1, 0, 1])
+        self.velocity_x = float(direction) * horizontal_speed
+        self.next_horizontal_change_tick = self.tick_count + self.direction_change_interval_ticks
+
+    def _maybe_update_vertical_velocity(self, base_speed_y: float):
+        """按时间片独立更新纵向速度。用于实现上下随机移动。"""
         if self.tick_count < self.next_vertical_change_tick:
             return
 
-        # 纵向速度离散随机。仅在上移、静止、下移三者间切换。
-        vertical_speed = max(0.2, base_speed_x * VERTICAL_SPEED_FACTOR)
-        self.velocity_y = random.choice([-vertical_speed, 0.0, vertical_speed])
-        self.next_vertical_change_tick = self.tick_count + random.randint(*VERTICAL_CHANGE_TICK_RANGE)
+        vertical_speed = self._randomized_speed(base_speed_y)
+        direction = random.choice([-1, 0, 1])
+        self.velocity_y = float(direction) * vertical_speed
+        self.next_vertical_change_tick = self.tick_count + self.direction_change_interval_ticks
 
     def place_initial(self):
         """设置桌宠初始位置。默认放在屏幕左下区域。"""
@@ -131,19 +151,15 @@ class MovementController:
         return True, blocked_by_edge
 
     def auto_move_tick(self):
-        """执行一次自主移动。支持随机上下、触边停顿并转向。"""
+        """执行一次自主移动。横向与纵向独立随机执行，触边后立即反弹。"""
         screen = QApplication.screenAt(self.pet.frameGeometry().center()) or QApplication.primaryScreen()
         geometry: QRect = screen.availableGeometry()
-        base_speed = self._base_speed_x(geometry)
-
-        # 保留朝向。仅更新速度绝对值以匹配分辨率目标速度。
-        if self.velocity_x >= 0:
-            self.velocity_x = base_speed
-        else:
-            self.velocity_x = -base_speed
+        base_speed_x = self._base_speed_x(geometry)
+        base_speed_y = self._base_speed_y(geometry)
 
         self.tick_count += 1
-        self._maybe_update_vertical_velocity(base_speed)
+        self._maybe_update_horizontal_velocity(base_speed_x)
+        self._maybe_update_vertical_velocity(base_speed_y)
 
         now_ms = int(time.monotonic() * 1000)
         # 停顿期内不移动。触边后先停顿再允许下一次位移。
@@ -155,33 +171,29 @@ class MovementController:
 
         next_x = int(round(self.float_x))
         next_y = int(round(self.float_y))
-        hit_boundary = False
 
-        # 触边即反向并夹紧。任意边界都执行统一处理。
-        if next_x <= geometry.left():
-            next_x = geometry.left()
-            self.velocity_x = abs(base_speed)
-            hit_boundary = True
-        elif next_x + self.pet.width() >= geometry.right():
-            next_x = geometry.right() - self.pet.width()
-            self.velocity_x = -abs(base_speed)
-            hit_boundary = True
+        min_x = geometry.left()
+        max_x = geometry.right() - self.pet.width()
+        min_y = geometry.top()
+        max_y = geometry.bottom() - self.pet.height()
 
-        if next_y <= geometry.top():
-            next_y = geometry.top()
+        # 触边立即反弹：位置钳制到边界，并立刻反向速度。
+        if next_x < min_x:
+            next_x = min_x
+            self.velocity_x = abs(self.velocity_x)
+        elif next_x > max_x:
+            next_x = max_x
+            self.velocity_x = -abs(self.velocity_x)
+
+        if next_y < min_y:
+            next_y = min_y
             self.velocity_y = abs(self.velocity_y)
-            hit_boundary = True
-        elif next_y + self.pet.height() >= geometry.bottom():
-            next_y = geometry.bottom() - self.pet.height()
+        elif next_y > max_y:
+            next_y = max_y
             self.velocity_y = -abs(self.velocity_y)
-            hit_boundary = True
 
         self.float_x = float(next_x)
         self.float_y = float(next_y)
-
-        if hit_boundary:
-            # 触边后进入停顿。使用固定毫秒值模拟停下再转向。
-            self.pause_until_ms = now_ms + EDGE_PAUSE_MS
 
         self.pet.facing_left = self.velocity_x < 0
         self.pet._apply_state_animation()
