@@ -1,138 +1,165 @@
-Ameath Desktop Pet（Windows）使用说明
+Ameath Desktop Pet（Windows）使用说明（v1.2.1）
 
-一、快速开始
-1. 双击根目录中的 AmeathDesktopPet.exe 启动程序。
+============================================================
+一、版本更新（v1.2.1）
+============================================================
+1. 修复：在“其他应用全屏时隐藏”显示模式下，部分实例在从全屏场景恢复后可能无法重新显示的问题。
+2. 优化：从隐藏状态恢复时会主动补全检查全部实例可见性，避免遗漏实例。
+
+============================================================
+二、快速开始
+============================================================
+1. 双击根目录中的 `AmeathDesktopPet.exe` 启动程序（开发模式可执行 `python main.py`）。
 2. 启动后会同时出现：
-   - 桌宠窗口（可拖动、右键操作）
+   - 桌宠窗口（可拖动、右键菜单控制）
    - 应用主界面（设置 / 音乐 / 关于）
-3. 如果关闭主界面，程序仍可能在系统托盘运行，可从托盘重新打开。
+3. 关闭主界面不一定退出程序，可能最小化到系统托盘。
 
-二、音乐文件位置（可自行添加）
-1. 音乐文件夹在程序根目录的 music 文件夹中。
-2. 支持常见音频格式：.ogg / .mp3 / .wav / .flac / .m4a。
-3. 你可以直接把新音乐文件复制到 music 文件夹，然后在应用中播放。
-4. 也可以在应用“音乐”页面使用“加入本地歌曲”按钮导入。
+============================================================
+三、桌宠交互与动画
+============================================================
+1. 左键按住拖动：桌宠进入拖拽状态并可移动位置。
+2. 自动移动：默认会在屏幕内随机方向移动，触碰边界后反弹，不穿屏。
+3. 朝向动画：向右使用 `move.gif`，向左使用镜像动画。
+4. 休息动画：会随机切换 `ameath.gif`、`idle1.gif`、`idle2.gif`、`idle3.gif`、`idle4.gif`。
+5. 右键高亮：对某个实例打开右键菜单时，该实例会显示天蓝色描边，菜单关闭后取消。
 
-三、桌宠基础操作
-1. 左键按住桌宠：可拖动位置。
-2. 右键桌宠：打开菜单，可设置
-   - 打开应用界面（快速打开设置/音乐/关于主窗口）
-   - 停止移动 / 恢复移动
-   - 跟随鼠标
-   - 缩放比例
-   - 透明度
-   - 显示优先级
-   - 多开数量
-   - 开机自启
-   - 关闭桌宠
-3. 右键时，当前操作的桌宠会出现天蓝色描边提示。
+============================================================
+四、右键菜单功能（单实例入口）
+============================================================
+1. 打开应用界面：呼出主窗口。
+2. 停止移动 / 恢复移动：仅作用于当前右键实例。
+3. 跟随鼠标：开关控制。
+4. 缩放比例：`0.1x ~ 2.0x`，步进 `0.1x`。
+5. 透明度：`10% ~ 100%`（右键菜单按 10% 步进）。
+6. 显示优先级：
+   - 始终置顶
+   - 其他应用全屏时隐藏
+   - 仅在桌面显示
+7. 多开数量：可设置目标实例数 `0 ~ 50`。
+8. 开机自启：Windows 注册表开关。
+9. 语言切换：支持 `中文 / English / 日本語 / 한국어 / Français`。
+10. 关闭桌宠：
+   - 仅关闭当前桌宠
+   - 关闭指定数量桌宠
+   - 一键关闭所有桌宠并退出
+11. 音乐子菜单（快捷控制）：当前曲名、上一首、播放/暂停、下一首、播放模式、音量滑条。
 
-四、音乐功能说明
-1. 右键桌宠 → 音乐：可快速上一首 / 播放暂停 / 下一首、改播放模式、调音量。
-2. 应用“音乐”页提供完整功能：
-   - 点击歌曲直接播放
+============================================================
+五、主界面功能
+============================================================
+【设置页】
+1. 与右键菜单配置项双向同步：跟随、缩放、透明度、显示优先级、多开数量、开机自启。
+2. “停止移动 / 恢复移动”按钮作用于全部实例（区别于右键仅当前实例）。
+3. 多开数量支持步进按钮，范围 `0 ~ 50`，修改后立即生效。
+4. 透明度使用 `0% ~ 100%` 连续滑条（与右键菜单实时同步）。
+5. 支持设置“点击 × 行为”：
+   - 每次询问
+   - 直接退出应用
+   - 最小化到系统托盘
+
+【音乐页】
+1. 显示当前歌曲名、播放进度（可拖动跳转）、当前时间/总时长。
+2. 主控按钮：上一首 / 播放暂停 / 下一首。
+3. 播放模式：列表循环 / 单曲循环 / 随机播放。
+4. 音量控制：`0% ~ 100%`。
+5. 歌单能力：
+   - 点击歌曲播放（点击当前歌曲切换播放/暂停）
    - 拖拽调整播放顺序
-   - 调整音量与播放模式
-   - 右键歌曲可重命名（会同步修改 music 文件夹中的文件名）
+   - 右键重命名歌曲（同步修改 `music` 目录文件名）
+6. 导入本地歌曲：支持 `.ogg/.mp3/.wav/.flac/.m4a`，导入到 `music` 目录。
+7. 批量删除模式：
+   - 点击“删除列表歌曲”进入勾选模式
+   - 可多选后“确认删除”
+   - 支持“仅从列表移除”或“从列表移除并删除本地文件”
+   - 可“取消删除”退出模式
 
-五、批量删除歌曲（音乐页）
-1. 点击“删除列表歌曲”进入删除模式。
-2. 按提示“已进入删除模式，请勾选歌曲后确认”，在歌曲右侧方框勾选多首。
-3. 点击“确认删除”后可选择：
-   - 仅从列表移除
-   - 从列表移除并删除本地文件
-4. 点击“取消删除”可退出删除模式。
+【关于页】
+1. 显示 `ameath.gif` 动图（自适应窗口，最大 648x648）。
+2. 提供语言下拉切换入口（与右键菜单语言配置同步）。
+3. 文案内容按语言自动切换。
 
-六、托盘与关闭行为
-1. 关闭主窗口时，可能按设置最小化到托盘而不是退出。
-2. 托盘图标右键可“打开”或“退出”。
-3. 如需彻底退出，请使用托盘“退出”或应用内退出按钮。
+============================================================
+六、托盘功能与关闭策略
+============================================================
+1. 托盘图标右键菜单提供：
+   - 打开
+   - 音乐快捷控制（当前曲名、上一首、播放/暂停、下一首、播放模式）
+   - 退出
+2. 双击托盘图标可打开主界面。
+3. 主窗口关闭时会根据“点击 × 行为”执行退出或最小化到托盘。
 
-七、常见问题
+============================================================
+七、显示优先级说明
+============================================================
+1. 始终置顶：桌宠保持在普通窗口上方显示。
+2. 其他应用全屏时隐藏：检测到顶层窗口为全屏或最大化时自动隐藏，条件解除后恢复显示。
+3. 仅在桌面显示：当前台为桌面窗口时显示，切到其他应用窗口时隐藏。
+
+============================================================
+八、多开与实例管理
+============================================================
+1. 实例数量范围：`0 ~ 50`。
+2. 调整数量后会立即补齐或缩减。
+3. 多实例场景下会自动尝试错位生成，减少重叠。
+4. 运行中会进行实例碰撞处理，重叠时自动分离并反向运动。
+
+============================================================
+九、数据与配置
+============================================================
+1. 设置会持久化保存（如：跟随、缩放、透明度、显示模式、多开数量、语言、关闭策略等）。
+2. 下次启动会自动恢复上次配置。
+3. 建议定期备份 `music` 目录自定义音频文件。
+
+============================================================
+十、常见问题
+============================================================
 1. 没有声音：
-   - 先检查应用内音量是否为 0
-   - 检查系统输出设备是否正确
-   - 确认 music 文件夹中有可播放音频文件
-2. 新歌曲没显示：
-   - 确认文件扩展名受支持
-   - 重新打开音乐页面或重启应用
-3. 无法删除文件：
-   - 可能文件被其他程序占用，请关闭占用程序后重试
-
-八、升级与数据
-1. 配置会保存在系统用户目录中，重启后会保留。
-2. 建议定期备份 music 文件夹中的自定义歌曲。
+   - 检查应用内音量是否为 0
+   - 检查系统默认输出设备
+   - 确认 `music` 目录内有可播放音频
+2. 新导入歌曲未显示：
+   - 检查扩展名是否受支持
+   - 尝试重新打开音乐页或重启应用
+3. 删除/重命名失败：
+   - 可能被其他程序占用该文件，请关闭占用后重试
 
 祝你使用愉快！
 
 ------------------------------------------------------------
-English Version
+English Version (v1.2.1)
 ------------------------------------------------------------
 
 Ameath Desktop Pet (Windows) User Guide
 
-1. Quick Start
-1) Double-click AmeathDesktopPet.exe in the root folder to launch.
-2) After startup, you will see both:
-   - Desktop pet window (draggable, right-click menu)
-   - Main app window (Settings / Music / About)
-3) If you close the main window, the app may still run in the system tray.
+1) What's New in v1.2.1
+- Fixed an issue where some pet instances might fail to reappear after leaving fullscreen scenarios under "Hide when other apps are fullscreen" mode.
+- Improved recovery logic to restore visibility for all hidden instances reliably.
 
-2. Music Folder (you can add files manually)
-1) Music files are stored in the music folder under the app root directory.
-2) Supported formats: .ogg / .mp3 / .wav / .flac / .m4a.
-3) You can copy music files directly into the music folder.
-4) You can also import tracks from the Music page using “Add Local Tracks”.
+2) Quick Start
+- Launch `AmeathDesktopPet.exe` (or run `python main.py` in development).
+- App starts both the pet window and the main UI (Settings / Music / About).
+- Closing main UI may minimize to tray depending on close policy.
 
-3. Basic Desktop Pet Operations
-1) Left-click and hold the pet to drag it.
-2) Right-click the pet to open the menu. Available options include:
-   - Open app window (quick access to Settings/Music/About)
-   - Stop Moving / Resume Moving
-   - Follow Mouse
-   - Scale
-   - Opacity
-   - Display Priority
-   - Instance Count
-   - Launch at Startup
-   - Close Pet
-3) While right-click menu is open, the active pet shows a sky-blue outline.
+3) Core Features
+- Drag with left mouse button.
+- Right-click menu per instance: open app, move toggle, follow mouse, scale, opacity, display mode, instance count, autostart, language, close actions, music controls.
+- 5 UI languages: `中文 / English / 日本語 / 한국어 / Français`.
+- Multi-instance support (`0~50`) with collision separation and non-overlap placement.
 
-4. Music Features
-1) Right-click pet -> Music: quick control for Previous / Play-Pause / Next,
-   play mode switching, and volume.
-2) The Music page provides full controls:
-   - Click a track to play
-   - Drag to reorder playlist
-   - Adjust volume and play mode
-   - Right-click track to rename (also renames the file in the music folder)
+4) Music
+- Full player in Music page: track title, seek bar, prev/play-next, mode switch, volume.
+- Playlist: click to play, drag to reorder, right-click rename (sync file rename in `music`).
+- Add local tracks (`.ogg/.mp3/.wav/.flac/.m4a`) into `music`.
+- Batch delete mode with two options: remove from list only / remove and delete local file.
+- Tray menu also supports music controls and mode switching.
 
-5. Batch Delete Tracks (Music Page)
-1) Click “Delete Tracks” to enter delete mode.
-2) Follow the prompt and check multiple tracks in the right-side checkboxes.
-3) Click “Confirm Delete”, then choose:
-   - Remove from playlist only
-   - Remove from playlist and delete local files
-4) Click “Cancel Delete” to exit delete mode.
+5) Display Modes
+- Always on top.
+- Hide when other apps are fullscreen (or maximized).
+- Desktop only.
 
-6. Tray and Close Behavior
-1) Closing the main window may minimize to tray (depending on settings).
-2) Right-click the tray icon for “Open” or “Exit”.
-3) To fully quit, use tray “Exit” or the in-app exit button.
+6) Persistence
+- Settings are saved and restored on next launch (language, scale, opacity, display mode, instance count, close behavior, etc.).
 
-7. FAQ
-1) No sound:
-   - Check if app volume is set to 0
-   - Check system output device
-   - Ensure playable audio files exist in the music folder
-2) New tracks do not appear:
-   - Verify file extension is supported
-   - Reopen the Music page or restart the app
-3) Cannot delete files:
-   - The file may be in use by another program; close it and retry
-
-8. Updates and Data
-1) App settings are saved in the user profile directory and persist after restart.
-2) It is recommended to back up custom tracks in the music folder regularly.
-
-Enjoy using Ameath Desktop Pet!
+Enjoy Ameath Desktop Pet!

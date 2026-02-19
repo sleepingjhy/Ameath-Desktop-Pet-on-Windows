@@ -620,6 +620,19 @@ class PetInstanceManager(QObject):
 
         return self._is_window_fullscreen(hwnd) or self._is_window_maximized(hwnd)
 
+    def _get_pet_window_handles(self) -> set[int]:
+        """收集当前桌宠实例窗口句柄。"""
+        """EN: Collect current desktop-pet window handles."""
+        handles: set[int] = set()
+        for pet in list(self._pets):
+            try:
+                hwnd = int(pet.winId())
+            except Exception:
+                continue
+            if hwnd:
+                handles.add(hwnd)
+        return handles
+
     def _is_window_maximized(self, hwnd) -> bool:
         """判断指定窗口是否为最大化状态。"""
         """EN: Determine if the specified window is maximized."""
@@ -636,6 +649,14 @@ class PetInstanceManager(QObject):
         if self._user32 is None:
             return 0
 
+        pet_handles = self._get_pet_window_handles()
+
+        foreground = self._get_valid_foreground_window()
+        if foreground and foreground not in pet_handles:
+            class_name = self._get_class_name(foreground)
+            if class_name not in {"Progman", "WorkerW"}:
+                return foreground
+
         hwnd = self._user32.GetTopWindow(0)
         gw_hwndnext = 2
         while hwnd:
@@ -646,6 +667,10 @@ class PetInstanceManager(QObject):
                 hwnd = self._user32.GetWindow(hwnd, gw_hwndnext)
                 continue
             if self._user32.IsIconic(hwnd):
+                hwnd = self._user32.GetWindow(hwnd, gw_hwndnext)
+                continue
+
+            if hwnd in pet_handles:
                 hwnd = self._user32.GetWindow(hwnd, gw_hwndnext)
                 continue
 
