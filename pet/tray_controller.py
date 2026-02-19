@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from .i18n import tr
-from .music_player import MODE_ICONS, PLAY_MODE_LIST, PLAY_MODE_RANDOM, PLAY_MODE_SINGLE
+from .music import MODE_ICONS, PLAY_MODE_LIST, PLAY_MODE_RANDOM, PLAY_MODE_SINGLE
 
 
 class TrayController:

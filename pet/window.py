@@ -42,7 +42,15 @@ class DesktopPet(QWidget):
     move_enabled_changed = Signal(bool)
     language_changed = Signal(str)
 
-    def __init__(self, on_open_main=None, on_request_quit=None, close_policy=None, instance_manager=None, music_player=None):
+    def __init__(
+        self,
+        on_open_main=None,
+        on_open_chat=None,
+        on_request_quit=None,
+        close_policy=None,
+        instance_manager=None,
+        music_player=None,
+    ):
         """完成主窗口初始化。包括资源校验、控制器构造和定时器启动。"""
         """EN: Finished initializing the main window. This includes resource checksumming, controller construction, and timer startup."""
         super().__init__()
@@ -86,6 +94,7 @@ class DesktopPet(QWidget):
         self.menu_last_pet_pos = QPoint(0, 0)
         self.follow_blocked = False
         self.on_open_main = on_open_main
+        self.on_open_chat = on_open_chat
         self.on_request_quit = on_request_quit
         self.close_policy = close_policy
         self.tray_controller = None
@@ -681,6 +690,15 @@ class DesktopPet(QWidget):
         if handle_mouse_release(self, event):
             return
         super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        """处理鼠标双击事件。左键双击打开独立聊天窗口。"""
+        """EN: Handle mouse double-click events. Double-click left button opens chat window."""
+        if event.button() == Qt.MouseButton.LeftButton and callable(self.on_open_chat):
+            self.on_open_chat()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
     def event(self, event):
         """处理通用事件。失焦时执行越界修正。"""

@@ -31,6 +31,7 @@ def get_language_items() -> list[tuple[str, str]]:
 TRANSLATIONS = {
     "zh-CN": {
         "app.settings": "设置",
+        "app.chat": "聊天",
         "app.music": "🎵 音乐",
         "app.about": "关于",
         "app.open_main": "打开应用界面",
@@ -87,6 +88,7 @@ TRANSLATIONS = {
     },
     "en": {
         "app.settings": "Settings",
+        "app.chat": "Chat",
         "app.music": "🎵 Music",
         "app.about": "About",
         "app.open_main": "Open App Window",
@@ -143,6 +145,7 @@ TRANSLATIONS = {
     },
     "ja": {
         "app.settings": "設定",
+        "app.chat": "チャット",
         "app.music": "🎵 音楽",
         "app.about": "このアプリについて",
         "app.open_main": "アプリ画面を開く",
@@ -199,6 +202,7 @@ TRANSLATIONS = {
     },
     "ko": {
         "app.settings": "설정",
+        "app.chat": "채팅",
         "app.music": "🎵 음악",
         "app.about": "정보",
         "app.open_main": "앱 창 열기",
@@ -255,6 +259,7 @@ TRANSLATIONS = {
     },
     "fr": {
         "app.settings": "Paramètres",
+        "app.chat": "Chat",
         "app.music": "🎵 Musique",
         "app.about": "À propos",
         "app.open_main": "Ouvrir l'application",

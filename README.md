@@ -53,6 +53,34 @@ python main.py
 
 ---
 
+## v1.3.0
+
+### 💬 聊天系统升级（微信风格 + 独立窗口）
+
+- 新增独立聊天窗口，支持从桌宠双击快速打开；应用内“聊天”入口与独立窗口联动。
+- 聊天消息改为严格逐条纵向显示，一次对话（发送 / 回复）不再占同一行。
+- 聊天记录时间分割文本（如 `01-01 00:00`）优化为白色显示，提升深色背景可读性。
+
+### 🖼️ 图文与表情发送优化
+
+- `+` 按钮改为“选择本地图片后插入输入框”，不再立即发送。
+- 支持“文字 + 表情 + 本地图片”混合编辑并一次发送为单条消息气泡。
+- 表情在输入区与消息区统一按接近文字大小显示（小尺寸表情），单独发送表情更自然。
+- 发送记录会保存为可读文本：表情记录为 `[表情名]`，本地图片记录为 `[图片:文件名]`，便于后续接入 API 上下文。
+
+### 😀 表情面板体验优化
+
+- 表情选择面板背景统一为粉色风格（含内部滚动区），避免黑底。
+- 支持“最近使用”持久化（最多 10 条），并新增垃圾桶按钮一键清空。
+- `+` 按钮新增悬浮提示“选择本地图片”。
+
+### 🔽 消息滚动与定位优化
+
+- 聊天消息过多时启用滚动条并保持最新消息在底部可见。
+- 聊天打开时初始视图自动定位到最新消息区域。
+
+---
+
 ## v1.2.0
 
 ### 🌐 新增多语言界面支持（中文 / English / 日本語 / 한국어 / Français）
@@ -159,7 +187,7 @@ python main.py
 
 ### EXE前端界面
 
-- 主界面包含"设置""关于"两个页面。
+- 主界面包含"设置""聊天""音乐""关于"四个页面。
 - 左上角显示 `gifs/ameath.ico`，并作为应用与托盘图标。
 - "设置"页面覆盖右键菜单可配置功能：停止移动、跟随鼠标、缩放比例、透明度、显示优先级、多开数量、开机自启、退出应用、关闭行为策略。
 - 设置页"移动控制"的按钮文案会在"停止移动 / 恢复移动"之间切换，且作用范围为全部实例。
@@ -217,8 +245,14 @@ python main.py
 └── 📁 pet
     ├── ⚙️ config.py          # 全局配置与资源路径
     ├── 🎞️ animation.py       # GIF 播放、缩放、镜像绘制
-    ├── 🎵 music_player.py    # 全局音乐播放器单例（QMediaPlayer）
-    ├── 🖥️ app_window.py      # 应用主界面（设置/音乐/关于页面）
+    ├── 🖥️ app_window.py      # 应用主界面（设置/聊天/音乐/关于页面）
+    ├── 📁 chat
+    │   ├── 🔌 api.py         # 聊天 Agent API 占位层（后续可接 DeepSeek）
+    │   ├── 🗃️ session.py     # 聊天会话状态与消息缓存
+    │   ├── 🧩 widgets.py     # 聊天气泡/消息流/输入区 UI 组件
+    │   └── 💬 window.py      # 独立聊天窗口
+    ├── 📁 music
+    │   └── music_player.py   # 全局音乐播放器单例（QMediaPlayer）
     ├── 🪟 window.py          # 桌宠窗口与状态调度中心
     ├── 🧩 tray_controller.py # 系统托盘控制与菜单行为
     ├── 💾 settings_store.py  # 设置持久化存储与读取
@@ -268,6 +302,25 @@ python main.py
 ```
 
 ### Core Features
+
+#### v1.3.0
+
+- Chat system upgrade (WeChat-style + standalone window):
+  - Added a standalone chat window, with quick open via double-clicking the pet; app-side Chat entry links to the same chat flow.
+  - Message flow is strictly one-by-one vertical; one user send and one pet reply no longer appear as the same row block.
+  - Chat divider timestamps (for example `02-22 20:53`) are now rendered in white for better readability on dark backgrounds.
+- Mixed content sending improvements:
+  - `+` button now inserts selected local images into the input box instead of sending immediately.
+  - Supports composing and sending mixed `text + emoji + local image` as one single message bubble.
+  - Emoji size is reduced to near-text scale in both input and message rendering.
+  - Message record text is normalized for future API context: emoji as `[emoji_name]`, local image as `[image:file_name]`.
+- Emoji panel UX improvements:
+  - Emoji picker background is unified to pink style (including internal scroll area), removing black-background artifacts.
+  - Added persistent “recently used” emojis (up to 10) with one-click clear button.
+  - Added tooltip on `+` button: `Select local image`.
+- Scroll and positioning behavior:
+  - Vertical scrollbar appears for long chats and keeps the latest message visible at the bottom.
+  - Chat view auto-locates to the latest message region when opened.
 
 #### v1.2.0
 

@@ -1,5 +1,7 @@
 .venv/
 __pycache__/
+pet/chat/__pycache__/
+pet/music/__pycache__/
 *.pyc
 *.pyo
 *.pyd

@@ -102,7 +102,22 @@ class AppWindow(QMainWindow):
     """应用主界面窗口。负责设置与关于页面展示。"""
     """EN: The main interface window of the app. Responsible for setting up and presenting about the page."""
 
-    def __init__(self, pet, settings_store, close_policy, request_quit, tray_controller=None, music_player=None):
+    PAGE_SETTINGS = 0
+    PAGE_CHAT = 1
+    PAGE_MUSIC = 2
+    PAGE_ABOUT = 3
+
+    def __init__(
+        self,
+        pet,
+        settings_store,
+        close_policy,
+        request_quit,
+        tray_controller=None,
+        music_player=None,
+        chat_session=None,
+        on_open_chat_window=None,
+    ):
         """初始化界面、样式和交互绑定。"""
         """EN: Initialize the interface, styles, and interactive bindings."""
         super().__init__()
@@ -112,6 +127,9 @@ class AppWindow(QMainWindow):
         self.request_quit = request_quit
         self.tray_controller = tray_controller
         self.music_player = music_player
+        self.chat_session = chat_session
+        self.on_open_chat_window = on_open_chat_window
+        self._last_non_chat_page_index = self.PAGE_SETTINGS
         self._is_exiting = False
         self.language = normalize_language(self.settings_store.get_language())
 
@@ -195,20 +213,25 @@ class AppWindow(QMainWindow):
         nav_layout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.settings_btn = QPushButton(tr(self.language, "app.settings"))
+        self.chat_btn = QPushButton(tr(self.language, "app.chat"))
         self.music_btn = QPushButton(tr(self.language, "app.music"))
         self.about_btn = QPushButton(tr(self.language, "app.about"))
         self.settings_btn.setObjectName("NavButton")
+        self.chat_btn.setObjectName("NavButton")
         self.music_btn.setObjectName("NavButton")
         self.about_btn.setObjectName("NavButton")
         self.settings_btn.setFixedWidth(120)
+        self.chat_btn.setFixedWidth(120)
         self.music_btn.setFixedWidth(120)
         self.about_btn.setFixedWidth(120)
 
-        self.settings_btn.clicked.connect(lambda: self.pages.setCurrentIndex(0))
-        self.music_btn.clicked.connect(lambda: self.pages.setCurrentIndex(1))
-        self.about_btn.clicked.connect(lambda: self.pages.setCurrentIndex(2))
+        self.settings_btn.clicked.connect(lambda: self._open_page(self.PAGE_SETTINGS))
+        self.chat_btn.clicked.connect(self._on_chat_nav_clicked)
+        self.music_btn.clicked.connect(lambda: self._open_page(self.PAGE_MUSIC))
+        self.about_btn.clicked.connect(lambda: self._open_page(self.PAGE_ABOUT))
 
         nav_layout.addWidget(self.settings_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
+        nav_layout.addWidget(self.chat_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
         nav_layout.addWidget(self.music_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
         nav_layout.addWidget(self.about_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
         nav_layout.addStretch(1)
@@ -216,8 +239,9 @@ class AppWindow(QMainWindow):
         self.pages = QStackedWidget()
         self.pages.currentChanged.connect(self._on_page_changed)
         self.pages.addWidget(self._build_settings_page())   # index 0
-        self.pages.addWidget(self._build_music_page())      # index 1
-        self.pages.addWidget(self._build_about_page())      # index 2
+        self.pages.addWidget(self._build_chat_page())       # index 1
+        self.pages.addWidget(self._build_music_page())      # index 2
+        self.pages.addWidget(self._build_about_page())      # index 3
 
         main_layout.addWidget(nav_card, stretch=0)
         main_layout.addWidget(self.pages, stretch=1)
@@ -336,6 +360,10 @@ class AppWindow(QMainWindow):
         """按当前语言重建主界面。"""
         """EN: Rebuild the main screen in the current language."""
         current_index = self.pages.currentIndex() if hasattr(self, "pages") else 0
+        if hasattr(self, "about_movie") and self.about_movie is not None:
+            self.about_movie.stop()
+            self.about_movie.deleteLater()
+            self.about_movie = None
         old_widget = self.centralWidget()
         self._build_ui()
         if old_widget is not None:
@@ -605,7 +633,7 @@ class AppWindow(QMainWindow):
     def _build_music_page(self) -> QWidget:
         """构建音乐播放器页面。包含播放控制、进度条、播放模式、音量与播放列表。"""
         """EN: Build the music player page. Contains playback controls, progress bars, play modes, volume, and playlists."""
-        from .music_player import PLAY_MODE_LIST, PLAY_MODE_SINGLE, PLAY_MODE_RANDOM, MODE_ICONS
+        from .music import PLAY_MODE_LIST, PLAY_MODE_SINGLE, PLAY_MODE_RANDOM, MODE_ICONS
 
         page = QWidget()
         page_layout = QVBoxLayout(page)
@@ -782,6 +810,34 @@ class AppWindow(QMainWindow):
             self._sync_music_ui_from_player()
 
         return page
+
+    def _build_chat_page(self) -> QWidget:
+        """构建聊天入口页。应用内仅保留跳转到独立聊天窗口。"""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(8)
+
+        tip = QLabel(self._l("聊天仅在独立窗口中使用", "Chat is available only in standalone window", "チャットは独立ウィンドウのみで利用できます", "채팅은 독립 창에서만 사용할 수 있습니다", "Le chat est disponible uniquement dans une fenêtre autonome"))
+        tip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tip.setObjectName("SectionTitle")
+        layout.addWidget(tip, stretch=1)
+
+        self.open_chat_window_btn = QPushButton(self._l("打开独立聊天窗口", "Open Chat Window", "チャットウィンドウを開く", "채팅 창 열기", "Ouvrir la fenêtre de chat"))
+        self.open_chat_window_btn.setObjectName("MusicListActionBtn")
+        self.open_chat_window_btn.setFixedHeight(36)
+        self.open_chat_window_btn.clicked.connect(self._on_open_chat_window)
+        layout.addWidget(self.open_chat_window_btn, stretch=0)
+
+        return page
+
+    def _open_page(self, page_index: int):
+        self.pages.setCurrentIndex(page_index)
+
+    def _on_chat_nav_clicked(self):
+        self._on_open_chat_window()
+        if hasattr(self, "pages"):
+            self.pages.setCurrentIndex(self._last_non_chat_page_index)
 
     def _build_about_page(self) -> QWidget:
         """构建关于页。中心显示 648x648 的 ameath.gif。"""
@@ -1188,7 +1244,14 @@ class AppWindow(QMainWindow):
     def _on_page_changed(self, index: int):
         """页面切换回调。在关于页显示时同步刷新 GIF 大小。"""
         """EN: Page toggle callback. Synchronously refreshes the GIF size when the About page is displayed."""
-        if index == 2:
+        if index == self.PAGE_CHAT:
+            self._on_open_chat_window()
+            self.pages.setCurrentIndex(self._last_non_chat_page_index)
+            return
+
+        self._last_non_chat_page_index = index
+
+        if index == self.PAGE_ABOUT:
             self._update_about_gif_size()
 
     def _update_about_gif_size(self):
@@ -1200,7 +1263,7 @@ class AppWindow(QMainWindow):
         if not hasattr(self, "about_movie") or self.about_movie is None:
             return
 
-        if self.pages.currentIndex() != 2:
+        if self.pages.currentIndex() != self.PAGE_ABOUT:
             return
 
         if hasattr(self, "about_scroll_area"):
@@ -1216,6 +1279,10 @@ class AppWindow(QMainWindow):
         self.about_gif_label.setFixedSize(target_size, target_size)
         self.about_movie.setScaledSize(QSize(target_size, target_size))
         self.about_gif_label.update()
+
+    def _on_open_chat_window(self):
+        if callable(self.on_open_chat_window):
+            self.on_open_chat_window()
 
     def set_tray_controller(self, tray_controller):
         """设置托盘控制器引用。用于最小化到托盘时通知。"""
@@ -1405,7 +1472,7 @@ class AppWindow(QMainWindow):
         """EN: Synchronize the player's current full state to the UI."""
         if self.music_player is None:
             return
-        from .music_player import PLAY_MODE_LIST
+        from .music import PLAY_MODE_LIST
         # 歌曲名
         # EN: Song name
         self.music_track_label.setText(self.music_player.current_track_name)

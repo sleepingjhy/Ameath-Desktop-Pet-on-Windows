@@ -181,7 +181,7 @@ def build_context_menu(pet, music_player=None, language: str = "zh-CN", on_set_l
 
         # 播放模式（互斥单选）
         # EN: Play Mode (Mutually Exclusive Radio)
-        from .music_player import PLAY_MODE_LIST, PLAY_MODE_SINGLE, PLAY_MODE_RANDOM, MODE_ICONS
+        from .music import PLAY_MODE_LIST, PLAY_MODE_SINGLE, PLAY_MODE_RANDOM, MODE_ICONS
         mode_group = QActionGroup(music_menu)
         mode_group.setExclusive(True)
         for mode_key, mode_label in [

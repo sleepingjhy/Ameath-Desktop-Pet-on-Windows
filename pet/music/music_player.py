@@ -1,4 +1,4 @@
-﻿"""全局音乐播放器单例。使用 QMediaPlayer + QAudioOutput 播放 music/ 目录下的 OGG 文件。"""
+"""全局音乐播放器单例。使用 QMediaPlayer + QAudioOutput 播放 music/ 目录下的 OGG 文件。"""
 # EN: Global music player singleton built on QMediaPlayer + QAudioOutput for tracks in the music directory.
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ if sys.platform.startswith("win"):
 
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
-from .config import MUSIC_DEFAULT_VOLUME, MUSIC_DIR
+from ..config import MUSIC_DEFAULT_VOLUME, MUSIC_DIR
 
 PLAY_MODE_LIST = "list"
 PLAY_MODE_SINGLE = "single"

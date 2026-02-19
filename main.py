@@ -6,10 +6,11 @@ from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from pet.app_window import AppWindow
+from pet.chat import ChatSession, ChatWindow
 from pet.close_policy import ClosePolicyManager
 from pet.config import APP_ICON_PATH
 from pet.instance_manager import PetInstanceManager
-from pet.music_player import MusicPlayer
+from pet.music import MusicPlayer
 from pet.settings_store import SettingsStore
 from pet.tray_controller import TrayController
 from pet.window import DesktopPet
@@ -47,6 +48,21 @@ def main():
     manager = None
     app_window = None
     tray_controller = None
+    chat_session = ChatSession()
+    chat_window = None
+
+    def open_chat_window():
+        """打开独立聊天窗口（全局单例）。"""
+        nonlocal chat_window
+
+        if chat_window is None:
+            chat_window = ChatWindow(session=chat_session)
+            chat_window.destroyed.connect(lambda *_: _reset_chat_window_ref())
+        chat_window.show_window()
+
+    def _reset_chat_window_ref():
+        nonlocal chat_window
+        chat_window = None
 
     def create_pet():
         """创建并注册单个桌宠实例。"""
@@ -55,6 +71,7 @@ def main():
 
         pet = DesktopPet(
             on_open_main=open_main_window,
+            on_open_chat=open_chat_window,
             on_request_quit=request_quit,
             close_policy=close_policy,
             instance_manager=manager,
@@ -94,6 +111,14 @@ def main():
             if hasattr(app_window, "deleteLater") and callable(app_window.deleteLater):
                 app_window.deleteLater()
 
+        if chat_window is not None:
+            if hasattr(chat_window, "prepare_for_exit") and callable(chat_window.prepare_for_exit):
+                chat_window.prepare_for_exit()
+            if hasattr(chat_window, "close") and callable(chat_window.close):
+                chat_window.close()
+            if hasattr(chat_window, "deleteLater") and callable(chat_window.deleteLater):
+                chat_window.deleteLater()
+
         if tray_controller is not None:
             if hasattr(tray_controller, "dispose") and callable(tray_controller.dispose):
                 tray_controller.dispose()
@@ -127,6 +152,8 @@ def main():
         request_quit=request_quit,
         tray_controller=None,
         music_player=music_player,
+        chat_session=chat_session,
+        on_open_chat_window=open_chat_window,
     )
 
     # 初始化系统托盘并显示。
