@@ -14,8 +14,20 @@
 
 <div align="center">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" />
-  <img alt="PySide6" src="https://img.shields.io/badge/PySide6-Qt%20for%20Python-41CD52?logo=qt&logoColor=white" />
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows&logoColor=white" />
+  <img alt="PySide6" src="https://img.shields.io/badge/PySide6-Qt%20for%20Python-41CD52?logo=qt&logoColor=white" />
+  <img alt="PySide6 Addons" src="https://img.shields.io/badge/PySide6--Addons-Enabled-41CD52?logo=qt&logoColor=white" />
+  <img alt="PySide6 Essentials" src="https://img.shields.io/badge/PySide6--Essentials-Enabled-41CD52?logo=qt&logoColor=white" />
+  <img alt="PyInstaller" src="https://img.shields.io/badge/PyInstaller-EXE%20Build-FF6F00" >
+  <img alt="QtCore" src="https://img.shields.io/badge/QtCore-In%20Use-41CD52?logo=qt&logoColor=white" />
+  <img alt="QtGui" src="https://img.shields.io/badge/QtGui-In%20Use-41CD52?logo=qt&logoColor=white" />
+  <img alt="QtWidgets" src="https://img.shields.io/badge/QtWidgets-In%20Use-41CD52?logo=qt&logoColor=white" />
+  <img alt="QtMultimedia" src="https://img.shields.io/badge/QtMultimedia-In%20Use-41CD52?logo=qt&logoColor=white" />
+  <img alt="winreg" src="https://img.shields.io/badge/winreg-Autostart-0078D6?logo=windows&logoColor=white" />
+  <img alt="ctypes Win32 API" src="https://img.shields.io/badge/ctypes-Win32%20API-0078D6?logo=windows&logoColor=white" />
+  <img alt="QFileSystemWatcher" src="https://img.shields.io/badge/QFileSystemWatcher-Music%20Sync-41CD52?logo=qt&logoColor=white" />
+  <img alt="i18n" src="https://img.shields.io/badge/i18n-5%20Languages-8E44AD" />
+  <img alt="pyside6-rcc" src="https://img.shields.io/badge/pyside6--rcc-resources.qrc%20%E2%86%92%20resources__rc.py-41CD52?logo=qt&logoColor=white" />
 </div>
 
 ## 运行
