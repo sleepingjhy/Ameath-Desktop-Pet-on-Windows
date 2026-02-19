@@ -9,7 +9,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, QUrl, Signal
 
 # Windows 下优先使用 ffmpeg 后端以支持 .ogg，并补齐 PySide6 目录到 DLL 搜索路径。
 # EN: Prefer to use the ffmpeg backend under Windows to support .ogg, and fill in the PySide6 directory to DLL search path.
@@ -41,6 +41,8 @@ MODE_ICONS = {
     PLAY_MODE_RANDOM: "🔀",
 }
 
+SUPPORTED_AUDIO_EXTENSIONS = {".ogg", ".mp3", ".wav", ".flac", ".m4a"}
+
 
 class MusicPlayer(QObject):
     """全局音乐播放器。管理播放列表、播放状态与音量控制。"""
@@ -65,6 +67,15 @@ class MusicPlayer(QObject):
         self._current_index: int = -1
         self._play_mode: str = PLAY_MODE_LIST
         self._volume: float = MUSIC_DEFAULT_VOLUME
+        self._excluded_tracks: set[Path] = set()
+
+        self._music_dir = Path(MUSIC_DIR)
+        self._music_dir.mkdir(parents=True, exist_ok=True)
+
+        self._watcher = QFileSystemWatcher(self)
+        self._playlist_sync_timer = QTimer(self)
+        self._playlist_sync_timer.setSingleShot(True)
+        self._playlist_sync_timer.setInterval(250)
 
         self._audio_output.setVolume(self._volume)
 
@@ -74,8 +85,12 @@ class MusicPlayer(QObject):
         self._player.playbackStateChanged.connect(self._on_playback_state_changed)
         self._player.durationChanged.connect(self._on_duration_changed)
         self._player.positionChanged.connect(self._on_position_changed)
+        self._watcher.directoryChanged.connect(self._schedule_playlist_sync)
+        self._watcher.fileChanged.connect(self._schedule_playlist_sync)
+        self._playlist_sync_timer.timeout.connect(self._sync_playlist_from_disk)
 
         self._load_playlist()
+        self._refresh_watcher_paths()
 
     # ------------------------------------------------------------------
     # 播放列表初始化
@@ -85,12 +100,89 @@ class MusicPlayer(QObject):
     def _load_playlist(self):
         """扫描 music/ 目录，加载所有 OGG 文件。"""
         """EN: Scan music/directory to load all OGG files."""
-        music_dir = Path(MUSIC_DIR)
-        if music_dir.exists():
-            files = sorted(music_dir.glob("*.ogg"))
-            self._playlist = list(files)
+        self._playlist = self._scan_music_dir()
         if self._playlist:
             self._current_index = 0
+
+    def _scan_music_dir(self) -> list[Path]:
+        """扫描 music/ 目录并返回可见音频文件。"""
+        """EN: Scan the music directory and return visible audio files."""
+        if not self._music_dir.exists():
+            return []
+        files = [
+            path
+            for path in sorted(self._music_dir.iterdir())
+            if path.is_file() and path.suffix.lower() in SUPPORTED_AUDIO_EXTENSIONS and path not in self._excluded_tracks
+        ]
+        return files
+
+    def _refresh_watcher_paths(self):
+        """刷新文件系统监听路径，确保目录与歌曲文件变更可被捕获。"""
+        """EN: Refresh filesystem watcher paths to capture directory and track file changes."""
+        existing = self._watcher.files() + self._watcher.directories()
+        if existing:
+            self._watcher.removePaths(existing)
+
+        if self._music_dir.exists():
+            self._watcher.addPath(str(self._music_dir))
+
+        file_paths = [str(path) for path in self._playlist if path.exists()]
+        if file_paths:
+            self._watcher.addPaths(file_paths)
+
+    def _schedule_playlist_sync(self, *_):
+        """对目录变化做防抖处理，避免频繁重扫。"""
+        """EN: Debounce playlist sync on directory changes to avoid frequent rescans."""
+        self._playlist_sync_timer.start()
+
+    def _sync_playlist_from_disk(self):
+        """将内存播放列表与 music/ 目录同步。"""
+        """EN: Synchronize in-memory playlist with files in the music directory."""
+        self._excluded_tracks = {path for path in self._excluded_tracks if path.exists()}
+
+        current_path = None
+        if 0 <= self._current_index < len(self._playlist):
+            current_path = self._playlist[self._current_index]
+
+        was_playing = self.is_playing
+        was_paused = self.is_paused
+        old_playlist = list(self._playlist)
+        new_playlist = self._scan_music_dir()
+
+        self._playlist = new_playlist
+        self._refresh_watcher_paths()
+
+        if old_playlist == new_playlist:
+            return
+
+        if not self._playlist:
+            self._current_index = -1
+            if was_playing or was_paused:
+                self._player.stop()
+                self._player.setSource(QUrl())
+            self.track_changed.emit(-1)
+            self.playlist_reordered.emit()
+            return
+
+        previous_index = self._current_index
+        if current_path in self._playlist:
+            self._current_index = self._playlist.index(current_path)
+        elif previous_index < 0:
+            self._current_index = 0
+        else:
+            self._current_index = min(previous_index, len(self._playlist) - 1)
+
+        current_changed = (self._current_index != previous_index)
+        current_missing = current_path is not None and current_path not in self._playlist
+
+        if current_missing and (was_playing or was_paused):
+            self.play(self._current_index)
+            if was_paused:
+                self._player.pause()
+        elif current_changed:
+            self.track_changed.emit(self._current_index)
+
+        self.playlist_reordered.emit()
 
     # ------------------------------------------------------------------
     # 只读属性
@@ -287,9 +379,11 @@ class MusicPlayer(QObject):
         except Exception as exc:
             return False, f"复制失败：{exc}"
 
+        self._excluded_tracks.discard(target)
         self._playlist.append(target)
         if self._current_index < 0:
             self._current_index = 0
+        self._refresh_watcher_paths()
         self.playlist_reordered.emit()
         return True, str(target)
 
@@ -308,6 +402,8 @@ class MusicPlayer(QObject):
             self._player.stop()
 
         self._playlist.pop(index)
+        if not delete_file:
+            self._excluded_tracks.add(removed_path)
 
         if not self._playlist:
             self._current_index = -1
@@ -326,10 +422,12 @@ class MusicPlayer(QObject):
             try:
                 if removed_path.exists():
                     removed_path.unlink()
+                self._excluded_tracks.discard(removed_path)
             except Exception as exc:
                 self.playlist_reordered.emit()
                 return False, f"已移出列表，但删除文件失败：{exc}"
 
+        self._refresh_watcher_paths()
         self.playlist_reordered.emit()
         return True, "ok"
 
@@ -368,6 +466,10 @@ class MusicPlayer(QObject):
         except Exception as exc:
             return False, f"重命名失败：{exc}"
 
+        if old_path in self._excluded_tracks:
+            self._excluded_tracks.discard(old_path)
+            self._excluded_tracks.add(target_path)
+
         self._playlist[index] = target_path
 
         if was_current:
@@ -380,6 +482,7 @@ class MusicPlayer(QObject):
             self.track_changed.emit(self._current_index)
 
         self.playlist_reordered.emit()
+        self._refresh_watcher_paths()
         return True, "ok"
 
     # ------------------------------------------------------------------
@@ -411,6 +514,28 @@ class MusicPlayer(QObject):
             self._player.positionChanged.disconnect(self._on_position_changed)
         except Exception:
             pass
+        try:
+            self._watcher.directoryChanged.disconnect(self._schedule_playlist_sync)
+        except Exception:
+            pass
+        try:
+            self._watcher.fileChanged.disconnect(self._schedule_playlist_sync)
+        except Exception:
+            pass
+        try:
+            self._playlist_sync_timer.timeout.disconnect(self._sync_playlist_from_disk)
+        except Exception:
+            pass
+        try:
+            self._playlist_sync_timer.stop()
+        except Exception:
+            pass
+        try:
+            existing = self._watcher.files() + self._watcher.directories()
+            if existing:
+                self._watcher.removePaths(existing)
+        except Exception:
+            pass
 
         try:
             self._player.stop()
@@ -421,12 +546,15 @@ class MusicPlayer(QObject):
         try:
             self._playlist.clear()
             self._current_index = -1
+            self._excluded_tracks.clear()
         except Exception:
             pass
 
         try:
             self._player.deleteLater()
             self._audio_output.deleteLater()
+            self._playlist_sync_timer.deleteLater()
+            self._watcher.deleteLater()
         except Exception:
             pass
 

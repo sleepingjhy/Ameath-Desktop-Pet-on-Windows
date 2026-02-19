@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, Qt, QSize
-from PySide6.QtGui import QCloseEvent, QIcon, QMovie
+from PySide6.QtGui import QCloseEvent, QIcon, QMovie, QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSlider,
     QSpinBox,
+    QStyledItemDelegate,
     QSizePolicy,
     QStackedWidget,
     QTextEdit,
@@ -42,11 +43,59 @@ from .config import (
     OPACITY_DEFAULT_PERCENT,
     OPACITY_PERCENT_MAX,
     OPACITY_PERCENT_MIN,
-    ROOT_DIR,
     SCALE_MAX,
     SCALE_MIN,
 )
 from .i18n import get_language_items, normalize_language, tr
+
+
+class MusicDeleteCheckDelegate(QStyledItemDelegate):
+    """删除模式下在左侧自绘蓝框与白色勾。"""
+    """EN: Draw left-side blue checkbox and white tick in delete mode."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._delete_mode = False
+
+    def set_delete_mode(self, enabled: bool):
+        self._delete_mode = bool(enabled)
+
+    def paint(self, painter: QPainter, option, index):
+        super().paint(painter, option, index)
+
+        if not self._delete_mode:
+            return
+
+        size = 16
+        left = option.rect.left() + 8
+        top = option.rect.top() + (option.rect.height() - size) // 2
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        state_data = index.data(Qt.ItemDataRole.CheckStateRole)
+        checked = False
+        if state_data is not None:
+            try:
+                checked = int(state_data) == int(Qt.CheckState.Checked)
+            except Exception:
+                checked = state_data == Qt.CheckState.Checked
+        border_color = QColor("#2f75ff") if checked else QColor("#6aa5ff")
+        fill_color = QColor("#3b82f6") if checked else QColor("#d7e8ff")
+
+        painter.setPen(QPen(border_color, 1))
+        painter.setBrush(fill_color)
+        painter.drawRoundedRect(left, top, size, size, 3, 3)
+
+        if checked:
+            tick_pen = QPen(QColor("#ffffff"), 2)
+            tick_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            tick_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(tick_pen)
+            painter.drawLine(left + 4, top + 8, left + 7, top + 11)
+            painter.drawLine(left + 7, top + 11, left + 12, top + 5)
+
+        painter.restore()
 
 
 class AppWindow(QMainWindow):
@@ -690,6 +739,8 @@ class AppWindow(QMainWindow):
         self.music_list_widget.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.music_list_widget.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.music_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._music_delete_delegate = MusicDeleteCheckDelegate(self.music_list_widget)
+        self.music_list_widget.setItemDelegate(self._music_delete_delegate)
         self.music_list_widget.viewport().installEventFilter(self)
         self.music_list_widget.itemClicked.connect(self._on_music_list_item_clicked)
         self.music_list_widget.model().rowsMoved.connect(self._on_music_list_rows_moved)
@@ -821,7 +872,6 @@ class AppWindow(QMainWindow):
     def _apply_theme(self):
         """应用浅粉白主基调样式。"""
         """EN: Apply a light pink main tone style."""
-        check_icon_path = (ROOT_DIR / "gifs" / "check_white.svg").as_posix()
         style = """
             QMainWindow {
                 background: #fff8fb;
@@ -1027,18 +1077,6 @@ class AppWindow(QMainWindow):
             QListWidget#MusicListWidget::item:hover {
                 background: #fff0f7;
             }
-            QListWidget#MusicListWidget::indicator {
-                width: 16px;
-                height: 16px;
-                border-radius: 3px;
-                border: 1px solid #6aa5ff;
-                background: #d7e8ff;
-            }
-            QListWidget#MusicListWidget::indicator:checked {
-                border: 1px solid #2f75ff;
-                background: #3b82f6;
-                image: url(__CHECK_ICON__);
-            }
             QLabel#MusicDeleteModeHint {
                 color: #1d4ed8;
                 font-size: 14px;
@@ -1049,7 +1087,7 @@ class AppWindow(QMainWindow):
                 padding: 8px 10px;
             }
             """
-        self.setStyleSheet(style.replace("__CHECK_ICON__", check_icon_path))
+        self.setStyleSheet(style)
 
     def _on_follow_toggled(self, checked: bool):
         """设置页跟随开关回调。"""
@@ -1126,11 +1164,8 @@ class AppWindow(QMainWindow):
         ):
             item = self.music_list_widget.itemAt(event.pos())
             if item is not None:
-                item.setCheckState(
-                    Qt.CheckState.Unchecked
-                    if item.checkState() == Qt.CheckState.Checked
-                    else Qt.CheckState.Checked
-                )
+                self._set_music_item_checked(item, not self._is_music_item_checked(item))
+                self.music_list_widget.viewport().update()
             return True
 
         if event.type() == QEvent.Type.Wheel and watched in {
@@ -1309,6 +1344,9 @@ class AppWindow(QMainWindow):
         if not hasattr(self, "music_list_widget"):
             return
 
+        if hasattr(self, "_music_delete_delegate"):
+            self._music_delete_delegate.set_delete_mode(self._music_delete_mode)
+
         # 先释放旧 item widget，避免残留控件对象堆积。
         # EN: Release the old item widget first to avoid the accumulation of residual control objects.
         for i in range(self.music_list_widget.count()):
@@ -1321,15 +1359,34 @@ class AppWindow(QMainWindow):
         self.music_list_widget.clear()
         if self.music_player is not None:
             for i, track in enumerate(self.music_player.playlist):
-                item = QListWidgetItem(f"{i + 1}. {track.stem}")
+                base_text = f"{i + 1}. {track.stem}"
+                text = f"      {base_text}" if self._music_delete_mode else base_text
+                item = QListWidgetItem(text)
                 if self._music_delete_mode:
-                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                    item.setCheckState(Qt.CheckState.Unchecked)
+                    self._set_music_item_checked(item, False)
                 else:
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+                    self._set_music_item_checked(item, False)
                 self.music_list_widget.addItem(item)
             self._highlight_current_track()
         self.music_list_widget.blockSignals(False)
+        self.music_list_widget.viewport().update()
+
+    @staticmethod
+    def _is_music_item_checked(item: QListWidgetItem) -> bool:
+        state_data = item.data(Qt.ItemDataRole.CheckStateRole)
+        if state_data is None:
+            return False
+        try:
+            return int(state_data) == int(Qt.CheckState.Checked)
+        except Exception:
+            return state_data == Qt.CheckState.Checked
+
+    @staticmethod
+    def _set_music_item_checked(item: QListWidgetItem, checked: bool):
+        item.setData(
+            Qt.ItemDataRole.CheckStateRole,
+            Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked,
+        )
 
     def _highlight_current_track(self):
         """高亮当前播放歌曲行。"""
@@ -1578,7 +1635,7 @@ class AppWindow(QMainWindow):
         checked_rows = []
         for i in range(self.music_list_widget.count()):
             item = self.music_list_widget.item(i)
-            if item.checkState() == Qt.CheckState.Checked:
+            if self._is_music_item_checked(item):
                 checked_rows.append(i)
 
         if not checked_rows:
