@@ -1,4 +1,4 @@
-Ameath Desktop Pet（Windows）使用说明（v1.3.1）
+Aemeath Desktop Pet（Windows）使用说明（v1.3.1）
 
 ============================================================
 一、版本更新（v1.3.1）
@@ -13,7 +13,7 @@ Ameath Desktop Pet（Windows）使用说明（v1.3.1）
 ============================================================
 二、快速开始
 ============================================================
-1. 双击根目录中的 `AmeathDesktopPet.exe` 启动程序（开发模式可执行 `python main.py`）。
+1. 双击根目录中的 `AemeathDesktopPet.exe` 启动程序（开发模式可执行 `python main.py`）。
 2. （可选）如需启用角色对话 API，请配置环境变量：
    - PowerShell：`$env:DEEPSEEK_API_KEY="YOUR_API_KEY"`
 3. 启动后会同时出现：
@@ -28,7 +28,7 @@ Ameath Desktop Pet（Windows）使用说明（v1.3.1）
 1. 左键按住拖动：桌宠进入拖拽状态并可移动位置。
 2. 自动移动：默认会在屏幕内随机方向移动，触碰边界后反弹，不穿屏。
 3. 朝向动画：向右使用 `move.gif`，向左使用镜像动画。
-4. 休息动画：会随机切换 `ameath.gif`、`idle1.gif`、`idle2.gif`、`idle3.gif`、`idle4.gif`。
+4. 休息动画：会随机切换 `aemeath.gif`、`idle1.gif`、`idle2.gif`、`idle3.gif`、`idle4.gif`。
 5. 右键高亮：对某个实例打开右键菜单时，该实例会显示天蓝色描边，菜单关闭后取消。
 
 ============================================================
@@ -88,7 +88,7 @@ Ameath Desktop Pet（Windows）使用说明（v1.3.1）
    - 可“取消删除”退出模式
 
 【关于页】
-1. 显示 `ameath.gif` 动图（自适应窗口，最大 648x648）。
+1. 显示 `aemeath.gif` 动图（自适应窗口，最大 648x648）。
 2. 提供语言下拉切换入口（与右键菜单语言配置同步）。
 3. 文案内容按语言自动切换。
 
@@ -143,7 +143,7 @@ Ameath Desktop Pet（Windows）使用说明（v1.3.1）
 English Version (v1.3.1)
 ------------------------------------------------------------
 
-Ameath Desktop Pet (Windows) User Guide
+Aemeath Desktop Pet (Windows) User Guide
 
 1) What's New in v1.3.1
 - Added DeepSeek API integration for role-based chat.
@@ -154,7 +154,7 @@ Ameath Desktop Pet (Windows) User Guide
 - Improved exit-path cleanup for chat thread/window lifecycle to reduce memory-leak risk.
 
 2) Quick Start
-- Launch `AmeathDesktopPet.exe` (or run `python main.py` in development).
+- Launch `AemeathDesktopPet.exe` (or run `python main.py` in development).
 - Optional: set API key in PowerShell: `$env:DEEPSEEK_API_KEY="YOUR_API_KEY"`.
 - App starts both the pet window and the main UI (Settings / Chat / Music / About).
 - Closing main UI may minimize to tray depending on close policy.
@@ -182,4 +182,4 @@ Ameath Desktop Pet (Windows) User Guide
 6) Persistence
 - Settings are saved and restored on next launch (language, scale, opacity, display mode, instance count, close behavior, etc.).
 
-Enjoy Ameath Desktop Pet!
+Enjoy Aemeath Desktop Pet!

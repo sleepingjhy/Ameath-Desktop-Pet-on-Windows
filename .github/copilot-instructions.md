@@ -1,4 +1,4 @@
-# Ameath Desktop Pet Instructions
+# Aemeath Desktop Pet Instructions
 
 ## 目录与文件功能索引
 
@@ -42,7 +42,7 @@
 - `exe/README.md`：EXE 目录与打包产物说明。
 
 ### 资源目录
-- `gifs/`：桌宠动画与图标资源（`move.gif`、`drag.gif`、`ameath.gif`、`idle*.gif`、`ameath.ico`）。
+- `gifs/`：桌宠动画与图标资源（`move.gif`、`drag.gif`、`aemeath.gif`、`idle*.gif`、`aemeath.ico`）。
 - `gifs/check_white.svg`：音乐页批量删除勾选框的白色勾图标资源。
 - `music/`：音乐资源（`.ogg`），用于播放器列表与播放控制。
 

@@ -9,7 +9,7 @@
 ---
 
 <div align="center">
-  <h1>❤️❤️❤️ Made by jhy &amp; Codex &amp; Ameath ❤️❤️❤️</h1>
+  <h1>❤️❤️❤️ Made by jhy &amp; Codex &amp; Aemeath ❤️❤️❤️</h1>
 </div>
 
 <div align="center">

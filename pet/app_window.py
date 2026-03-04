@@ -137,7 +137,7 @@ class AppWindow(QMainWindow):
         self._is_exiting = False
         self.language = normalize_language(self.settings_store.get_language())
 
-        self.setWindowTitle("Ameath Desktop Pet")
+        self.setWindowTitle("Aemeath Desktop Pet")
         self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.setMinimumSize(980, 720)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -153,7 +153,7 @@ class AppWindow(QMainWindow):
                 "❤️❤️❤️ 爱来自 jhy ❤️❤️❤️"
             ),
             "en": (
-                "Ameath — transform~\n"
+                "Aemeath — transform~\n"
                 "Stars shine toward tomorrow!\n"
                 "Tonight, the sea of stars is crystal clear!\n"
                 "The moment of salvation has arrived!\n"
@@ -180,7 +180,7 @@ class AppWindow(QMainWindow):
                 "❤️❤️❤️ jhy의 사랑 ❤️❤️❤️"
             ),
             "fr": (
-                "Ameath — transformation~\n"
+                "Aemeath — transformation~\n"
                 "Les étoiles éclairent demain !\n"
                 "Ce soir, la mer d'étoiles est limpide !\n"
                 "L'heure du salut est arrivée !\n"
@@ -919,8 +919,8 @@ class AppWindow(QMainWindow):
             self.pages.setCurrentIndex(self._last_non_chat_page_index)
 
     def _build_about_page(self) -> QWidget:
-        """构建关于页。中心显示 648x648 的 ameath.gif。"""
-        """EN: Build an about page. The center displays ameath.gif of 648x648."""
+        """构建关于页。中心显示 648x648 的 aemeath.gif。"""
+        """EN: Build an about page. The center displays aemeath.gif of 648x648."""
         page = QWidget()
         page_layout = QVBoxLayout(page)
         page_layout.setContentsMargins(16, 16, 16, 16)

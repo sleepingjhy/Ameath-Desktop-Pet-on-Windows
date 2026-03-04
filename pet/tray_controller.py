@@ -23,7 +23,7 @@ class TrayController:
         self.music_player = music_player
 
         self.tray = QSystemTrayIcon(QIcon(str(icon_path)))
-        self.tray.setToolTip("Ameath Desktop Pet")
+        self.tray.setToolTip("Aemeath Desktop Pet")
 
         self.menu = QMenu()
         self.menu.aboutToShow.connect(self._refresh_texts)
@@ -101,7 +101,7 @@ class TrayController:
         """EN: Show notification that app has been minimized to tray."""
         self._refresh_texts()
         self.tray.showMessage(
-            "Ameath Desktop Pet",
+            "Aemeath Desktop Pet",
             self._tr("tray.minimized"),
             QSystemTrayIcon.MessageIcon.Information,
             3000,

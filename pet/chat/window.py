@@ -64,7 +64,7 @@ class ChatWindow(QMainWindow):
         root_layout.addWidget(self.chat_panel, stretch=1)
         self.setCentralWidget(root_widget)
 
-        self.setWindowTitle("Ameath Chat")
+        self.setWindowTitle("Aemeath Chat")
         self.setMinimumSize(760, 700)
 
         self.setStyleSheet(

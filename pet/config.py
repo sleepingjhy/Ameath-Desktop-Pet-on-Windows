@@ -4,6 +4,8 @@
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QFile
+
 # 定义核心目录。支持源码运行与打包运行两种路径模式。
 # EN: Define the core directory. It supports two path modes: source code running and packaging running.
 if getattr(sys, "frozen", False):
@@ -14,23 +16,32 @@ GIFS_DIR = ROOT_DIR / "gifs"
 MUSIC_DIR = ROOT_DIR / "music"
 RESOURCE_PREFIX = ":/gifs"
 
+
+def _resolve_gif_asset(filename: str) -> str:
+    """优先使用 Qt 资源路径；不可用时回退到本地 gifs 目录。"""
+    """EN: Prefer Qt resource path; fallback to local gifs directory when unavailable."""
+    resource_path = f"{RESOURCE_PREFIX}/{filename}"
+    if QFile.exists(resource_path):
+        return resource_path
+    return str((GIFS_DIR / filename).resolve())
+
 # 定义应用标识与通用资源路径。
 # EN: Define app identities and common resource paths.
-APP_NAME = "AmeathDesktopPet"
-APP_ICON_PATH = f"{RESOURCE_PREFIX}/ameath.ico"
-ABOUT_GIF_PATH = f"{RESOURCE_PREFIX}/ameath.gif"
+APP_NAME = "AemeathDesktopPet"
+APP_ICON_PATH = _resolve_gif_asset("aemeath.ico")
+ABOUT_GIF_PATH = _resolve_gif_asset("aemeath.gif")
 
 # 建立动画资源映射。按动作类别组织 GIF 文件路径。
 # EN: Build an animation resource map. Organize GIF file paths by action category.
 ASSET_PATHS = {
-    "move": f"{RESOURCE_PREFIX}/move.gif",
-    "drag": f"{RESOURCE_PREFIX}/drag.gif",
+    "move": _resolve_gif_asset("move.gif"),
+    "drag": _resolve_gif_asset("drag.gif"),
     "rest": [
-        f"{RESOURCE_PREFIX}/ameath.gif",
-        f"{RESOURCE_PREFIX}/idle1.gif",
-        f"{RESOURCE_PREFIX}/idle2.gif",
-        f"{RESOURCE_PREFIX}/idle3.gif",
-        f"{RESOURCE_PREFIX}/idle4.gif",
+        _resolve_gif_asset("aemeath.gif"),
+        _resolve_gif_asset("idle1.gif"),
+        _resolve_gif_asset("idle2.gif"),
+        _resolve_gif_asset("idle3.gif"),
+        _resolve_gif_asset("idle4.gif"),
     ],
 }
 
@@ -70,7 +81,7 @@ EDGE_PAUSE_MS = 500
 
 # 定义开机自启键名。用于写入 Windows Run 注册表项。
 # EN: Define the power-on autostart key name. Used to write Windows Run registry keys.
-APP_AUTOSTART_NAME = "DesktopPetAmeath"
+APP_AUTOSTART_NAME = "DesktopPetAemeath"
 
 # 定义音乐播放器默认参数。
 # EN: Defines the default parameters for the music player.

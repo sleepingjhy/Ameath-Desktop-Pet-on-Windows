@@ -37,14 +37,14 @@ if ($Clean) {
     --clean `
     --onedir `
     --windowed `
-    --name AmeathDesktopPet `
-    --icon "$root\gifs\ameath.ico" `
+    --name AemeathDesktopPet `
+    --icon "$root\gifs\aemeath.ico" `
     --distpath "$root\exe\dist" `
     --workpath "$root\exe\build" `
     --specpath "$root\exe" `
     "$root\main.py"
 
-$distRoot = Join-Path $root "exe\dist\AmeathDesktopPet"
+$distRoot = Join-Path $root "exe\dist\AemeathDesktopPet"
 
 # 同步聊天/表情等文件资源目录。
 $distGifs = Join-Path $distRoot "gifs"
