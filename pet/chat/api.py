@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import re
 import warnings
 from pathlib import Path
 
 from pet.config import ROOT_DIR
+from pet.llm_providers import get_provider, LLMProvider
 from pet.search import SearchRetriever, build_search_context
 
 try:
@@ -22,6 +24,11 @@ try:
     from openai import OpenAI
 except ImportError:  # pragma: no cover - 运行环境未安装时降级
     OpenAI = None
+
+# 图片大小限制常量
+# EN: Image size limit constants
+MAX_SINGLE_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_TOTAL_SIZE = 100 * 1024 * 1024  # 100MB
 
 
 class ChatAgentApi:
@@ -62,24 +69,246 @@ class ChatAgentApi:
     _ONLINE_CONTEXT_MAX_CHARS = 1200
     _HISTORY_CONTEXT_MAX_CHARS = 800
 
-    def __init__(self, model: str = "deepseek-chat", timeout_seconds: float = 20.0, top_k: int = 3):
-        self._model = model
+    def __init__(self, provider_id: str = "deepseek", model: str = "", timeout_seconds: float = 20.0, top_k: int = 3):
+        self._provider_id = provider_id
+        self._model = model  # 空字符串表示使用提供商默认模型
         self._timeout_seconds = float(timeout_seconds)
         self._top_k = max(1, int(top_k))
         self._retriever = SearchRetriever(Path(ROOT_DIR) / "pet" / "search" / "data")
         self._client = None
         self._client_api_key = ""
+        self._client_provider_id = ""
 
-    def reply(self, user_message: str, history_records: list[str] | None = None) -> str:
+    def set_provider(self, provider_id: str, model: str = ""):
+        """切换模型提供商。"""
+        """EN: Switch model provider."""
+        self._provider_id = provider_id
+        self._model = model
+        # 重置客户端以使用新提供商
+        self._client = None
+        self._client_provider_id = ""
+
+    def _get_provider(self) -> LLMProvider | None:
+        """获取当前提供商配置。"""
+        """EN: Get current provider configuration."""
+        return get_provider(self._provider_id)
+
+    def _get_current_model(self, provider: LLMProvider) -> str:
+        """获取当前使用的模型ID。"""
+        """EN: Get the current model ID."""
+        if self._model:
+            return self._model
+        return provider.default_model
+
+    def _encode_image_to_base64(self, image_path: str) -> tuple[str, str]:
+        """将图片编码为base64，返回(mime_type, base64_string)。"""
+        """EN: Encode image to base64, returns (mime_type, base64_string)."""
+        path = Path(image_path)
+        if not path.exists():
+            raise FileNotFoundError(f"图片不存在: {image_path}")
+
+        # 检查文件大小
+        size = path.stat().st_size
+        if size > MAX_SINGLE_IMAGE_SIZE:
+            raise ValueError(f"图片过大: {size / 1024 / 1024:.1f}MB > 10MB")
+
+        # 识别MIME类型
+        suffix = path.suffix.lower()
+        mime_map = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".bmp": "image/bmp",
+        }
+        mime_type = mime_map.get(suffix, "image/jpeg")
+
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("utf-8")
+        return mime_type, b64
+
+    def _validate_images(self, image_paths: list[str]) -> None:
+        """验证图片列表，检查总大小。"""
+        """EN: Validate image list, check total size."""
+        total_size = 0
+        for path in image_paths:
+            p = Path(path)
+            if not p.exists():
+                raise FileNotFoundError(f"图片不存在: {path}")
+            size = p.stat().st_size
+            if size > MAX_SINGLE_IMAGE_SIZE:
+                raise ValueError(f"单张图片超过10MB: {path}")
+            total_size += size
+        if total_size > MAX_TOTAL_SIZE:
+            raise ValueError(f"图片总大小超过100MB: {total_size / 1024 / 1024:.1f}MB")
+
+    def _build_vision_content(self, text: str, image_paths: list[str]) -> list:
+        """构建多模态消息内容。"""
+        """EN: Build multimodal message content."""
+        content = [{"type": "text", "text": text}]
+        for path in image_paths:
+            mime_type, b64 = self._encode_image_to_base64(path)
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime_type};base64,{b64}"}
+            })
+        return content
+
+    def _encode_file_to_base64(self, file_path: str) -> tuple[str, str, str]:
+        """将文件编码为base64，返回(mime_type, base64_string, file_name)。"""
+        """EN: Encode file to base64, returns (mime_type, base64_string, file_name)."""
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"文件不存在: {file_path}")
+
+        # 检查文件大小
+        size = path.stat().st_size
+        if size > MAX_SINGLE_IMAGE_SIZE:
+            raise ValueError(f"文件过大: {size / 1024 / 1024:.1f}MB > 10MB")
+
+        # 识别MIME类型
+        suffix = path.suffix.lower()
+        mime_map = {
+            # 文档
+            ".pdf": "application/pdf",
+            ".doc": "application/msword",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xls": "application/vnd.ms-excel",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".ppt": "application/vnd.ms-powerpoint",
+            ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".txt": "text/plain",
+            ".md": "text/markdown",
+            ".json": "application/json",
+            ".xml": "application/xml",
+            ".csv": "text/csv",
+            # 代码
+            ".py": "text/x-python",
+            ".js": "text/javascript",
+            ".ts": "text/typescript",
+            ".java": "text/x-java",
+            ".cpp": "text/x-c++",
+            ".c": "text/x-c",
+            ".h": "text/x-c",
+            ".cs": "text/x-csharp",
+            ".go": "text/x-go",
+            ".rs": "text/x-rust",
+            ".rb": "text/x-ruby",
+            ".php": "text/x-php",
+            ".swift": "text/x-swift",
+            ".kt": "text/x-kotlin",
+            # 压缩包
+            ".zip": "application/zip",
+            ".rar": "application/vnd.rar",
+            ".7z": "application/x-7z-compressed",
+            ".tar": "application/x-tar",
+            ".gz": "application/gzip",
+            # 音频
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".flac": "audio/flac",
+            ".aac": "audio/aac",
+            ".ogg": "audio/ogg",
+            ".m4a": "audio/mp4",
+        }
+        mime_type = mime_map.get(suffix, "application/octet-stream")
+
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("utf-8")
+        return mime_type, b64, path.name
+
+    def _validate_files(self, file_paths: list[str]) -> None:
+        """验证文件列表，检查总大小。"""
+        """EN: Validate file list, check total size."""
+        total_size = 0
+        for path in file_paths:
+            p = Path(path)
+            if not p.exists():
+                raise FileNotFoundError(f"文件不存在: {path}")
+            size = p.stat().st_size
+            if size > MAX_SINGLE_IMAGE_SIZE:
+                raise ValueError(f"单个文件超过10MB: {path}")
+            total_size += size
+        if total_size > MAX_TOTAL_SIZE:
+            raise ValueError(f"文件总大小超过100MB: {total_size / 1024 / 1024:.1f}MB")
+
+    def _is_image_file(self, file_path: str) -> bool:
+        """检查是否为图片文件。"""
+        """EN: Check if it's an image file."""
+        image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+        return Path(file_path).suffix.lower() in image_extensions
+
+    def reply(self, user_message: str, images: list[str] | None = None, history_records: list[str] | None = None) -> str:
+        """发送消息并获取回复，支持图片和文件。"""
+        """EN: Send message and get reply, supports images and files."""
         clean_user_message = str(user_message).strip()
         if not clean_user_message:
             return "你还没有输入内容。"
 
-        api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        # 获取提供商配置
+        provider = self._get_provider()
+        if not provider:
+            return "未知的模型提供商，请在设置中选择模型。"
+
+        # 获取当前模型配置
+        model_id = self._get_current_model(provider)
+        model_config = provider.get_model(model_id)
+
+        # 分离图片和非图片文件
+        # EN: Separate image and non-image files
+        image_paths: list[str] = []
+        file_paths: list[str] = []
+        if images:
+            for path in images:
+                if self._is_image_file(path):
+                    image_paths.append(path)
+                else:
+                    file_paths.append(path)
+
+        # 检查视觉支持（仅对图片）
+        if image_paths and (not model_config or not model_config.supports_vision):
+            return f"{provider.name} 的当前模型不支持图片输入，请切换到支持视觉的模型。"
+
+        # 获取API密钥
+        api_key = os.environ.get(provider.api_key_env, "").strip()
         if not api_key:
-            return "未检测到 DEEPSEEK_API_KEY，请先在环境变量中配置后再试。"
+            return f"未设置 {provider.name} API密钥，请在设置中配置。"
         if OpenAI is None:
             return "当前环境缺少 openai 依赖，请先执行 `pip install openai`。"
+
+        # 验证图片
+        if image_paths:
+            try:
+                self._validate_images(image_paths)
+            except (FileNotFoundError, ValueError) as e:
+                return f"图片验证失败: {e}"
+
+        # 验证文件
+        if file_paths:
+            try:
+                self._validate_files(file_paths)
+            except (FileNotFoundError, ValueError) as e:
+                return f"文件验证失败: {e}"
+
+        # 构建文件信息上下文
+        # EN: Build file info context
+        file_context = ""
+        if file_paths:
+            file_info_parts = []
+            for path in file_paths:
+                try:
+                    mime_type, b64, file_name = self._encode_file_to_base64(path)
+                    file_size = Path(path).stat().st_size
+                    file_info_parts.append(
+                        f"- 文件名: {file_name}\n"
+                        f"  类型: {mime_type}\n"
+                        f"  大小: {file_size / 1024:.1f}KB\n"
+                        f"  Base64内容:\n{b64[:500]}{'...' if len(b64) > 500 else ''}"
+                    )
+                except Exception as e:
+                    file_info_parts.append(f"- 文件 {Path(path).name}: 读取失败 - {e}")
+            file_context = "\n\n以下为用户上传的文件内容：\n" + "\n\n".join(file_info_parts)
 
         retrieval_query = self._build_search_query(clean_user_message)
         local_context = self._build_local_search_context(retrieval_query, clean_user_message)
@@ -108,17 +337,25 @@ class ChatAgentApi:
                     }
                 )
 
-        messages.append({"role": "user", "content": clean_user_message})
+        # 构建用户消息（支持图片和文件）
+        # EN: Build user message (supports images and files)
+        user_text = clean_user_message + file_context
+
+        if image_paths:
+            user_content = self._build_vision_content(user_text, image_paths)
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": user_text})
 
         try:
-            client = self._get_client(api_key)
+            client = self._get_client(api_key, provider)
             response = client.chat.completions.create(
-                model=self._model,
+                model=model_id,
                 messages=messages,
                 stream=False,
             )
         except Exception as exc:  # pragma: no cover - 依赖外部网络
-            return f"调用 DeepSeek 失败：{exc}"
+            return f"调用 {provider.name} 失败：{exc}"
 
         if not response.choices:
             return "模型未返回有效结果，请稍后重试。"
@@ -191,11 +428,18 @@ class ChatAgentApi:
             return raw
         return raw[:max_chars] + "\n...(已截断)"
 
-    def _get_client(self, api_key: str):
-        if self._client is not None and self._client_api_key == api_key:
+    def _get_client(self, api_key: str, provider: LLMProvider):
+        """根据provider配置创建OpenAI兼容客户端。"""
+        """EN: Create OpenAI compatible client based on provider configuration."""
+        if self._client is not None and self._client_api_key == api_key and self._client_provider_id == provider.id:
             return self._client
-        self._client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com", timeout=self._timeout_seconds)
+        self._client = OpenAI(
+            api_key=api_key,
+            base_url=provider.base_url,
+            timeout=self._timeout_seconds
+        )
         self._client_api_key = api_key
+        self._client_provider_id = provider.id
         return self._client
 
     def _build_local_search_context(self, retrieval_query: str, user_message: str) -> str:

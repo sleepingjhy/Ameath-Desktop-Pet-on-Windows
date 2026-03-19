@@ -227,3 +227,53 @@ class SettingsStore:
         """EN: Update the configuration for showing window on autostart and save."""
         self.data["autostart_show_window"] = bool(enabled)
         self.save()
+
+    # === 多模型配置存储 ===
+    # EN: === Multi-model configuration storage ===
+
+    def get_llm_provider(self) -> str:
+        """获取当前选择的模型提供商ID，未设置返回空字符串。"""
+        """EN: Get the currently selected model provider ID, returns empty string if not set."""
+        value = self.data.get("llm_provider", "")
+        return str(value) if value else ""
+
+    def set_llm_provider(self, provider_id: str):
+        """设置当前模型提供商。"""
+        """EN: Set the current model provider."""
+        self.data["llm_provider"] = str(provider_id)
+        self.save()
+
+    def get_llm_model(self, provider_id: str) -> str:
+        """获取特定提供商的模型，未设置返回空字符串。"""
+        """EN: Get the model for a specific provider, returns empty string if not set."""
+        key = f"llm_model_{provider_id}"
+        value = self.data.get(key, "")
+        return str(value) if value else ""
+
+    def set_llm_model(self, provider_id: str, model: str):
+        """设置特定提供商的模型。"""
+        """EN: Set the model for a specific provider."""
+        key = f"llm_model_{provider_id}"
+        self.data[key] = str(model)
+        self.save()
+
+    def get_api_key_for_provider(self, provider_id: str) -> str:
+        """获取特定提供商的API密钥。"""
+        """EN: Get the API key for a specific provider."""
+        key = f"api_key_{provider_id}"
+        value = self.data.get(key, "")
+        return str(value).strip() if value else ""
+
+    def set_api_key_for_provider(self, provider_id: str, key: str):
+        """设置特定提供商的API密钥。"""
+        """EN: Set the API key for a specific provider."""
+        storage_key = f"api_key_{provider_id}"
+        self.data[storage_key] = str(key or "").strip()
+        self.save()
+
+    def migrate_legacy_deepseek_key(self):
+        """迁移旧版DeepSeek密钥到新格式。"""
+        """EN: Migrate legacy DeepSeek key to new format."""
+        old_key = self.data.get("api_key", "")
+        if old_key and not self.get_api_key_for_provider("deepseek"):
+            self.set_api_key_for_provider("deepseek", old_key)

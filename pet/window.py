@@ -179,6 +179,13 @@ class DesktopPet(QWidget):
         if self.state.in_rest:
             return
 
+        # 移动已停止时显示休息动画
+        # EN: Show rest animation when movement is stopped
+        if not self.state.move_enabled:
+            self.state.enter_rest()
+            self.show_rest_animation()
+            return
+
         self._set_animation("move", mirror=self.facing_left)
 
     def _tick(self):
@@ -213,9 +220,10 @@ class DesktopPet(QWidget):
         self.follow_blocked = False
         self.follow_changed.emit(self.state.follow_mouse)
         self.move_enabled_changed.emit(self.state.move_enabled)
-        self.idle.try_enter_rest()
-        if not self.state.in_rest:
-            self._set_animation("move", mirror=self.facing_left)
+        # 停止移动时直接进入休息状态并显示休息动画
+        # EN: Enter rest state and show rest animation directly when stopping movement
+        self.state.enter_rest()
+        self.show_rest_animation()
 
     def on_stop_move(self, checked=False):
         """兼容入口：切换全部实例移动状态。"""

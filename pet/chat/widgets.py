@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -518,6 +519,16 @@ class ChatPanel(QWidget):
         self._sending_guard_timer.setSingleShot(True)
         self._sending_guard_timer.timeout.connect(self._on_sending_guard_timeout)
 
+        # 多模型支持
+        # EN: Multi-model support
+        self._current_provider_id = ""
+        self._current_model_id = ""
+        self._current_supports_vision = False
+
+        # 待发送文件列表
+        # EN: Pending files to send
+        self._pending_files: list[str] = []
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -565,6 +576,12 @@ class ChatPanel(QWidget):
         self.add_btn.setObjectName("ChatIconBtn")
         self.add_btn.setFixedSize(34, 34)
         self.add_btn.setToolTip("选择本地图片")
+
+        self.file_btn = QPushButton("📎")
+        self.file_btn.setObjectName("ChatIconBtn")
+        self.file_btn.setFixedSize(34, 34)
+        self.file_btn.setToolTip("上传文件")
+
         self.send_btn = QPushButton("发送")
         self.send_btn.setObjectName("ChatSendBtn")
         self.send_btn.setFixedSize(72, 34)
@@ -575,6 +592,7 @@ class ChatPanel(QWidget):
         input_layout.addWidget(self.emoji_btn, stretch=0)
         input_layout.addWidget(self.input_edit, stretch=1)
         input_layout.addWidget(self.add_btn, stretch=0)
+        input_layout.addWidget(self.file_btn, stretch=0)
         input_layout.addWidget(self.send_btn, stretch=0)
 
         root.addWidget(input_row, stretch=0)
@@ -684,6 +702,7 @@ class ChatPanel(QWidget):
 
         self.send_btn.clicked.connect(self._on_send_clicked)
         self.add_btn.clicked.connect(self._on_add_image_clicked)
+        self.file_btn.clicked.connect(self._on_add_file_clicked)
         self.emoji_btn.clicked.connect(self._on_open_emoji_picker)
         self.input_edit.textChanged.connect(self._update_send_btn_state)
         self.input_edit.installEventFilter(self)
@@ -696,10 +715,33 @@ class ChatPanel(QWidget):
         self._reload_current_conversation_messages()
         QTimer.singleShot(0, self._scroll_to_latest_message)
 
+    def set_provider_and_model(self, provider_id: str, model_id: str, supports_vision: bool):
+        """设置当前模型，更新图片按钮状态。"""
+        """EN: Set current model, update image button state."""
+        self._current_provider_id = provider_id
+        self._current_model_id = model_id
+        self._current_supports_vision = supports_vision
+        self._update_image_button_state()
+
+    def _update_image_button_state(self):
+        """根据当前模型视觉能力更新图片按钮状态。"""
+        """EN: Update image button state based on current model vision capability."""
+        if self._current_supports_vision:
+            self.add_btn.setEnabled(True)
+            self.add_btn.setToolTip("选择本地图片")
+            self.add_btn.setStyleSheet("")
+        else:
+            self.add_btn.setEnabled(False)
+            if self._current_model_id:
+                self.add_btn.setToolTip("当前模型不支持图片输入")
+            else:
+                self.add_btn.setToolTip("请先在设置中选择AI模型")
+
     def dispose(self):
         self.top_bar.dispose()
         _safe_disconnect(self.send_btn.clicked, self._on_send_clicked)
         _safe_disconnect(self.add_btn.clicked, self._on_add_image_clicked)
+        _safe_disconnect(self.file_btn.clicked, self._on_add_file_clicked)
         _safe_disconnect(self.session.message_added, self._on_message_added)
         _safe_disconnect(self.session.session_cleared, self._on_session_cleared)
         _safe_disconnect(self.session.active_conversation_changed, self._on_active_conversation_changed)
@@ -864,13 +906,16 @@ class ChatPanel(QWidget):
         except Exception:
             return False
 
-    def _build_compose_payload(self) -> tuple[str, str]:
+    def _build_compose_payload(self) -> tuple[str, str, list[str]]:
+        """构建消息负载，返回(display_html, record_text, image_paths)。"""
+        """EN: Build message payload, returns (display_html, record_text, image_paths)."""
         plain_text = self.input_edit.toPlainText()
         html = self.input_edit.toHtml()
         image_sources = self._extract_inline_image_paths(html)
 
         display_parts: list[str] = []
         record_parts: list[str] = []
+        image_paths: list[str] = []  # 收集非表情图片路径
         image_index = 0
 
         for char in plain_text:
@@ -891,6 +936,7 @@ class ChatPanel(QWidget):
                 else:
                     display_parts.append(f'<img src="{escaped_uri}" width="120" height="120" />')
                     record_parts.append(f"[图片:{resolved_path.name}]")
+                    image_paths.append(str(resolved_path))  # 收集图片路径
                 continue
 
             if char == "\n":
@@ -917,23 +963,60 @@ class ChatPanel(QWidget):
             else:
                 display_parts.append(f'<img src="{escaped_uri}" width="120" height="120" />')
                 record_parts.append(f"[图片:{resolved_path.name}]")
+                image_paths.append(str(resolved_path))  # 收集图片路径
 
         display_html = "".join(display_parts).strip()
         record_text = "".join(record_parts).strip()
-        return display_html, record_text
+
+        # 添加待发送文件到记录文本
+        # EN: Add pending files to record text
+        file_paths = self._pending_files.copy()
+        for file_path in file_paths:
+            file_name = Path(file_path).name
+            record_parts.append(f"\n[文件:{file_name}]")
+
+        record_text = "".join(record_parts).strip()
+        return display_html, record_text, image_paths, file_paths
 
     def _on_send_clicked(self):
-        display_html, record_text = self._build_compose_payload()
-        if not display_html and not record_text:
+        display_html, record_text, image_paths, file_paths = self._build_compose_payload()
+        if not display_html and not record_text and not file_paths:
             self._show_empty_hint()
             return
 
+        # 检查视觉支持（仅对图片）
+        if image_paths and not self._current_supports_vision:
+            model_name = self._current_model_id or "当前模型"
+            QMessageBox.warning(
+                self,
+                "提示",
+                f"{model_name} 不支持图片输入，请切换到支持视觉的模型。"
+            )
+            return
+
         self._start_sending_state()
-        self.session.send_composed(display_html, record_text)
+        # 合并图片和文件列表
+        all_files = (image_paths or []) + file_paths
+        self.session.send_composed(
+            display_html,
+            record_text,
+            all_files if all_files else None
+        )
         self.input_edit.clear()
+        self._pending_files.clear()  # 清空待发送文件列表
         self._update_send_btn_state()
 
     def _on_add_image_clicked(self):
+        """图片选择按钮点击。"""
+        """EN: Image selection button clicked."""
+        if not self._current_supports_vision:
+            QMessageBox.information(
+                self,
+                "提示",
+                "当前模型不支持图片输入，请在设置中选择支持视觉的模型。"
+            )
+            return
+
         path, _ = QFileDialog.getOpenFileName(
             self,
             "选择图片",
@@ -941,11 +1024,75 @@ class ChatPanel(QWidget):
             "Images (*.png *.jpg *.jpeg *.bmp *.webp)",
         )
         if path:
+            # 检查文件大小
+            file_size = Path(path).stat().st_size
+            if file_size > 10 * 1024 * 1024:  # 10MB
+                QMessageBox.warning(self, "提示", "图片大小不能超过10MB")
+                return
+
             uri = Path(path).resolve().as_uri()
             cursor = self.input_edit.textCursor()
             cursor.insertHtml(f'<img src="{uri}" width="120" height="120" />')
             self.input_edit.setTextCursor(cursor)
             self._update_send_btn_state()
+
+    def _on_add_file_clicked(self):
+        """文件选择按钮点击。"""
+        """EN: File selection button clicked."""
+        # 支持的文件类型（排除图片和视频）
+        # EN: Supported file types (excluding images and videos)
+        file_filter = (
+            "All Files (*);;"
+            "Documents (*.pdf *.doc *.docx *.xls *.xlsx *.ppt *.pptx *.txt *.md *.json *.xml *.csv);;"
+            "Code Files (*.py *.js *.ts *.java *.cpp *.c *.h *.cs *.go *.rs *.rb *.php *.swift *.kt);;"
+            "Archive Files (*.zip *.rar *.7z *.tar *.gz);;"
+            "Audio Files (*.mp3 *.wav *.flac *.aac *.ogg *.m4a)"
+        )
+
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "选择文件",
+            "",
+            file_filter,
+        )
+
+        if not paths:
+            return
+
+        # 过滤掉图片和视频文件
+        # EN: Filter out image and video files
+        image_video_extensions = {
+            '.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif', '.svg',
+            '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'
+        }
+
+        valid_files = []
+        for path in paths:
+            ext = Path(path).suffix.lower()
+            if ext in image_video_extensions:
+                continue  # 跳过图片和视频
+            # 检查文件大小 (单个文件最大10MB)
+            file_size = Path(path).stat().st_size
+            if file_size > 10 * 1024 * 1024:
+                QMessageBox.warning(self, "提示", f"文件 {Path(path).name} 超过10MB，已跳过")
+                continue
+            valid_files.append(path)
+
+        if not valid_files:
+            return
+
+        # 添加到待发送文件列表
+        # EN: Add to pending files list
+        self._pending_files.extend(valid_files)
+
+        # 在输入框中显示文件提示
+        # EN: Show file hints in input box
+        cursor = self.input_edit.textCursor()
+        for path in valid_files:
+            file_name = Path(path).name
+            cursor.insertHtml(f'<span style="background: #e3f2fd; padding: 2px 6px; border-radius: 4px; margin: 2px;">📎 {file_name}</span>&nbsp;')
+        self.input_edit.setTextCursor(cursor)
+        self._update_send_btn_state()
 
     def _on_message_added(self, conversation_id: str, message: ChatMessage):
         if str(conversation_id) != str(self.session.current_conversation_id):
@@ -1052,5 +1199,5 @@ class ChatPanel(QWidget):
             self.send_btn.setEnabled(False)
             return
 
-        display_html, record_text = self._build_compose_payload()
+        display_html, record_text, _, _ = self._build_compose_payload()
         self.send_btn.setEnabled(bool(display_html or record_text))

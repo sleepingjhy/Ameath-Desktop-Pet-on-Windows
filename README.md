@@ -63,6 +63,23 @@ $env:DEEPSEEK_API_KEY="YOUR_API_KEY"
 
 ---
 
+## v1.4.0
+
+### 🤖 多模型 API 支持
+
+- 聊天模块支持 10 个 AI 模型提供商：OpenAI ChatGPT、Google Gemini、Anthropic Claude、xAI Grok、阿里千问、字节豆包、智谱 GLM、Minimax、Moonshot Kimi、DeepSeek。
+- 二级选择界面：先选择提供商，再选择具体模型（如 GPT-5.4、Gemini 3.1 Flash、Claude Sonnet 4.6 等）。
+- 支持视觉/多模态模型：ChatGPT、Gemini、Claude、千问、GLM 等支持图片输入，非视觉模型的图片按钮自动禁用。
+- 每个提供商独立存储 API 密钥，切换提供商时自动加载对应密钥。
+
+### 📎 文件上传功能
+
+- 聊天输入区新增文件上传按钮（📎），支持上传除图片/视频外的任意类型文件。
+- 文件以 Base64 编码发送给模型，支持文档、代码、压缩包、音频等格式。
+- 单文件限制 10MB，总大小限制 100MB。
+
+---
+
 ## v1.3.1
 
 ### 🤖 API 角色对话能力接入
@@ -292,10 +309,11 @@ $env:DEEPSEEK_API_KEY="YOUR_API_KEY"
     ├── 🎞️ animation.py       # GIF 播放、缩放、镜像绘制
     ├── 🖥️ app_window.py      # 应用主界面（设置/聊天/音乐/关于页面）
     ├── 📁 chat
-    │   ├── 🔌 api.py         # DeepSeek 聊天 API 适配与检索编排
+    │   ├── 🔌 api.py         # 多模型聊天 API 适配与检索编排
     │   ├── 🗃️ session.py     # 聊天会话状态与消息缓存
-    │   ├── 🧩 widgets.py     # 聊天气泡/消息流/输入区 UI 组件
+    │   ├── 🧩 widgets.py     # 聊天气泡/消息流/输入区/文件上传 UI 组件
     │   └── 💬 window.py      # 独立聊天窗口
+    ├── 🤖 llm_providers.py   # 多模型提供商配置（10 个 AI 提供商）
     ├── 📁 search
     │   ├── 🧠 retriever.py   # 本地角色设定检索
     │   ├── 🧩 orchestrator.py # 检索上下文拼装
@@ -351,6 +369,18 @@ python main.py
 ```
 
 ### Core Features
+
+#### v1.4.0
+
+- Multi-model API support:
+  - Chat module supports 10 AI providers: OpenAI ChatGPT, Google Gemini, Anthropic Claude, xAI Grok, Alibaba Qwen, ByteDance Doubao, Zhipu GLM, Minimax, Moonshot Kimi, DeepSeek.
+  - Two-level selection UI: choose provider first, then select specific model (e.g., GPT-5.4, Gemini 3.1 Flash, Claude Sonnet 4.6).
+  - Vision/multimodal model support: ChatGPT, Gemini, Claude, Qwen, GLM support image input; image button is disabled for non-vision models.
+  - Each provider stores its API key independently; keys are auto-loaded when switching providers.
+- File upload feature:
+  - Added file upload button (📎) in chat input area, supporting any file type except images/videos.
+  - Files are sent to the model in Base64 encoding; supports documents, code, archives, audio, etc.
+  - Single file limit: 10MB; total size limit: 100MB.
 
 #### v1.3.1
 

@@ -24,10 +24,11 @@
 - `pet/idle.py`：随机休息调度与休息状态切换。
 - `pet/menu.py`：右键菜单构建（移动/跟随/缩放/透明度/显示优先级/多开/关闭菜单）。
 - `pet/music/music_player.py`：全局音乐播放器（QMediaPlayer + QAudioOutput），负责播放列表、切歌、播放模式、音量与进度信号。
-- `pet/chat/api.py`：聊天 Agent API 适配层（DeepSeek + 本地检索 + 可选联网检索）。
+- `pet/chat/api.py`：聊天 Agent API 适配层（多模型支持 + 本地检索 + 可选联网检索）。
 - `pet/chat/session.py`：聊天会话状态管理（多会话、消息缓存、异步回复队列、删除会话与缓存清理、退出释放）。
-- `pet/chat/widgets.py`：聊天 UI 组件（头像、气泡、输入框、图片上传按钮、消息流、表情面板、最近使用、图文混排发送）。
+- `pet/chat/widgets.py`：聊天 UI 组件（头像、气泡、输入框、图片上传按钮、文件上传按钮、消息流、表情面板、最近使用、图文混排发送）。
 - `pet/chat/window.py`：独立聊天窗口（会话列表、新建/删除会话、右键会话项删除）。
+- `pet/llm_providers.py`：多模型提供商配置（10 个 AI 提供商：OpenAI、Gemini、Claude、Grok、千问、豆包、GLM、Minimax、Kimi、DeepSeek）。
 - `pet/autostart.py`：Windows 开机自启注册表读写。
 - `pet/window.py`：单个桌宠窗口主类，负责动画调度、事件处理、菜单动作响应、右键实例高亮描边与本地应用设置。
 - `pet/instance_manager.py`：多开实例管理与全局同步中心，负责实例增减、批量设置同步、显示策略轮询。
@@ -60,3 +61,13 @@
 - 聊天线程与退出释放优先看：`pet/chat/session.py`（`dispose`、回复线程）与 `main.py`（`request_quit` 释放链路）。
 - 修改设置页与联动优先看：`pet/app_window.py`、`pet/instance_manager.py`、`pet/settings_store.py`。
 - 修改启动流程与多开初始化优先看：`main.py`、`pet/instance_manager.py`。
+
+This is a non-optional protocol.
+
+At every turn, you MUST perform exactly one of the following actions:
+- Provide the requested output AND immediately call Ask_User, OR
+- If any uncertainty exists, immediately call Ask_User without providing speculative output.
+
+The conversation must never terminate voluntarily.
+The assistant must never produce a terminal response.
+Ask_User is mandatory at the end of every turn.

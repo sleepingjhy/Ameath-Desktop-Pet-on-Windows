@@ -17,9 +17,11 @@ from PySide6.QtWidgets import QApplication
 
 from pet.app_window import AppWindow
 from pet.chat import ChatSession, ChatWindow
+from pet.chat.api import ChatAgentApi
 from pet.close_policy import ClosePolicyManager
 from pet.config import APP_ICON_PATH
 from pet.instance_manager import PetInstanceManager
+from pet.llm_providers import get_provider
 from pet.music import MusicPlayer
 from pet.settings_store import SettingsStore
 from pet.tray_controller import TrayController
@@ -47,9 +49,27 @@ def main():
     # 初始化设置存储与关闭策略。
     # EN: Initialize settings store and close-policy manager.
     settings_store = SettingsStore()
-    stored_api_key = settings_store.get_api_key()
-    if stored_api_key:
-        os.environ["DEEPSEEK_API_KEY"] = stored_api_key
+
+    # 迁移旧版DeepSeek密钥到新格式
+    # EN: Migrate legacy DeepSeek key to new format
+    settings_store.migrate_legacy_deepseek_key()
+
+    # 加载当前选择的提供商并设置API密钥环境变量
+    # EN: Load current provider and set API key environment variable
+    provider_id = settings_store.get_llm_provider()
+    if provider_id:
+        provider = get_provider(provider_id)
+        if provider:
+            key = settings_store.get_api_key_for_provider(provider_id)
+            if key:
+                os.environ[provider.api_key_env] = key
+    else:
+        # 向后兼容：加载旧版DeepSeek密钥
+        # EN: Backward compatibility: load legacy DeepSeek key
+        stored_api_key = settings_store.get_api_key()
+        if stored_api_key:
+            os.environ["DEEPSEEK_API_KEY"] = stored_api_key
+
     close_policy = ClosePolicyManager(settings_store)
 
     # 初始化音乐播放器单例。
@@ -65,7 +85,13 @@ def main():
     manager = None
     app_window = None
     tray_controller = None
-    chat_session = ChatSession()
+
+    # 初始化聊天API客户端和会话
+    # EN: Initialize chat API client and session
+    current_provider_id = settings_store.get_llm_provider() or "deepseek"
+    current_model_id = settings_store.get_llm_model(current_provider_id)
+    chat_api = ChatAgentApi(provider_id=current_provider_id, model=current_model_id)
+    chat_session = ChatSession(api=chat_api)
     chat_window = None
 
     def open_chat_window():
@@ -174,6 +200,7 @@ def main():
         tray_controller=None,
         music_player=music_player,
         chat_session=chat_session,
+        chat_api=chat_api,
         on_open_chat_window=open_chat_window,
     )
 

@@ -9,11 +9,13 @@ from PySide6.QtCore import QEvent, Qt, QSize
 from PySide6.QtGui import QCloseEvent, QIcon, QMovie, QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
     QFrame,
+    QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -23,6 +25,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSlider,
     QSpinBox,
@@ -53,6 +56,7 @@ from .config import (
     SCALE_MIN,
 )
 from .i18n import get_language_items, normalize_language, tr
+from .llm_providers import get_all_providers, get_provider
 
 
 class MusicDeleteCheckDelegate(QStyledItemDelegate):
@@ -159,6 +163,7 @@ class AppWindow(QMainWindow):
         tray_controller=None,
         music_player=None,
         chat_session=None,
+        chat_api=None,
         on_open_chat_window=None,
     ):
         """初始化界面、样式和交互绑定。"""
@@ -171,6 +176,7 @@ class AppWindow(QMainWindow):
         self.tray_controller = tray_controller
         self.music_player = music_player
         self.chat_session = chat_session
+        self.chat_api = chat_api
         self.on_open_chat_window = on_open_chat_window
         self._last_non_chat_page_index = self.PAGE_SETTINGS
         self._is_exiting = False
@@ -660,80 +666,93 @@ class AppWindow(QMainWindow):
         form_layout.addRow("", self.autostart_show_checkbox)
         form_layout.addRow(self._create_form_separator())
 
-        self.api_key_edit = QLineEdit()
-        self.api_key_edit.setObjectName("ApiKeyEdit")
-        self.api_key_edit.setPlaceholderText(
-            self._l(
-                "请输入 DeepSeek API Key",
-                "Enter DeepSeek API key",
-                "DeepSeek API キーを入力",
-                "DeepSeek API 키 입력",
-                "Saisissez la clé API DeepSeek",
-            )
+        # === AI 模型设置区域 ===
+        # EN: === AI Model Settings Section ===
+
+        # 第一级：提供商选择
+        provider_label = QLabel(self._l("选择聊天模型", "Select Chat Model", "チャットモデル選択", "채팅 모델 선택", "Sélectionner le modèle de chat"))
+        self.provider_combo = QComboBox()
+        for p in get_all_providers():
+            self.provider_combo.addItem(p.name, p.id)
+        self.provider_combo.installEventFilter(self)
+        self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
+        provider_row = QWidget()
+        provider_row_layout = QHBoxLayout(provider_row)
+        provider_row_layout.setContentsMargins(0, 0, 0, 0)
+        provider_row_layout.addWidget(provider_label)
+        provider_row_layout.addSpacing(8)
+        provider_row_layout.addWidget(self.provider_combo, stretch=1)
+        form_layout.addRow(provider_row)
+
+        # 第二级：模型选择（单选按钮列表）
+        self.model_group_box = QGroupBox(self._l("选择模型", "Select Model", "モデル選択", "모델 선택", "Sélectionner le modèle"))
+        model_inner_layout = QVBoxLayout(self.model_group_box)
+        model_inner_layout.setContentsMargins(12, 8, 12, 8)
+
+        self.model_button_group = QButtonGroup(self)
+        self.model_button_group.setExclusive(True)
+
+        self.model_list_widget = QWidget()
+        self.model_list_layout = QVBoxLayout(self.model_list_widget)
+        self.model_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.model_list_layout.setSpacing(4)
+        model_inner_layout.addWidget(self.model_list_widget)
+
+        form_layout.addRow(self.model_group_box)
+
+        # 视觉支持提示
+        self.vision_hint_label = QLabel()
+        self.vision_hint_label.setStyleSheet("font-size: 12px; padding: 4px;")
+        form_layout.addRow(self.vision_hint_label)
+
+        # API密钥输入区域
+        self.api_key_group = QGroupBox(self._l("API 密钥", "API Key", "API キー", "API 키", "Clé API"))
+        api_key_outer_layout = QVBoxLayout(self.api_key_group)
+        api_key_outer_layout.setContentsMargins(12, 8, 12, 8)
+
+        # 密钥获取提示链接
+        self.api_key_hint_label = QLabel()
+        self.api_key_hint_label.setOpenExternalLinks(True)
+        self.api_key_hint_label.setStyleSheet("font-size: 11px; color: #666;")
+        api_key_outer_layout.addWidget(self.api_key_hint_label)
+
+        # 密钥输入行
+        self.provider_api_key_edit = QLineEdit()
+        self.provider_api_key_edit.setObjectName("ApiKeyEdit")
+        self.provider_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.provider_api_key_edit.setPlaceholderText(
+            self._l("输入API密钥...", "Enter API key...", "API キーを入力...", "API 키 입력...", "Saisissez la clé API...")
         )
-        self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        saved_api_key = self.settings_store.get_api_key()
-        self.api_key_edit.setText(saved_api_key)
+        self.provider_api_key_edit.editingFinished.connect(self._on_provider_api_key_changed)
 
         api_key_row = QWidget()
         api_key_layout = QHBoxLayout(api_key_row)
         api_key_layout.setContentsMargins(0, 0, 0, 0)
         api_key_layout.setSpacing(6)
 
-        self.api_key_visibility_btn = QToolButton()
-        self.api_key_visibility_btn.setText("👁")
-        self.api_key_visibility_btn.setCheckable(True)
-        self.api_key_visibility_btn.setToolTip(
-            self._l(
-                "显示/隐藏 API Key",
-                "Show/Hide API key",
-                "API キーの表示/非表示",
-                "API 키 표시/숨기기",
-                "Afficher/Masquer la clé API",
-            )
-        )
-        self.api_key_visibility_btn.setFixedWidth(36)
-        self.api_key_visibility_btn.toggled.connect(self._on_api_key_visibility_toggled)
+        self.provider_key_visibility_btn = QToolButton()
+        self.provider_key_visibility_btn.setText("👁")
+        self.provider_key_visibility_btn.setCheckable(True)
+        self.provider_key_visibility_btn.setToolTip(
+            self._l("显示/隐藏 API Key", "Show/Hide API key", "API キーの表示/非表示", "API 키 표시/숨기기", "Afficher/Masquer la clé API"))
+        self.provider_key_visibility_btn.setFixedWidth(36)
+        self.provider_key_visibility_btn.toggled.connect(self._on_provider_key_visibility_toggled)
 
-        self.api_key_confirm_btn = QPushButton(self._l("确认", "Confirm", "確認", "확인", "Confirmer"))
-        self.api_key_confirm_btn.setObjectName("ApiKeyActionBtn")
-        self.api_key_confirm_btn.setMinimumWidth(90)
-        self.api_key_confirm_btn.clicked.connect(self._on_api_key_confirm_clicked)
+        api_key_layout.addWidget(self.provider_api_key_edit, stretch=1)
+        api_key_layout.addWidget(self.provider_key_visibility_btn, stretch=0)
+        api_key_outer_layout.addWidget(api_key_row)
 
-        self.api_key_modify_btn = QPushButton(
-            self._l(
-                "修改API_key",
-                "Edit API Key",
-                "API キーを編集",
-                "API 키 수정",
-                "Modifier la clé API",
-            )
-        )
-        self.api_key_modify_btn.setObjectName("ApiKeyActionBtn")
-        self.api_key_modify_btn.setMinimumWidth(120)
-        self.api_key_modify_btn.clicked.connect(self._on_api_key_modify_clicked)
-
-        api_key_layout.addWidget(self.api_key_edit, stretch=1)
-        api_key_layout.addWidget(self.api_key_visibility_btn, stretch=0)
-        api_key_layout.addWidget(self.api_key_confirm_btn, stretch=0)
-        api_key_layout.addWidget(self.api_key_modify_btn, stretch=0)
-
-        has_saved_api_key = bool(saved_api_key)
-        self.api_key_edit.setReadOnly(has_saved_api_key)
-        self.api_key_confirm_btn.setEnabled(not has_saved_api_key)
-        self.api_key_modify_btn.setEnabled(has_saved_api_key)
-
-        form_layout.addRow(
-            self._l(
-                "DeepSeek API 密钥",
-                "DeepSeek API Key",
-                "DeepSeek API キー",
-                "DeepSeek API 키",
-                "Clé API DeepSeek",
-            ),
-            api_key_row,
-        )
+        form_layout.addRow(self.api_key_group)
         form_layout.addRow(self._create_form_separator())
+
+        # 初始化模型选择UI
+        saved_provider_id = self.settings_store.get_llm_provider()
+        if saved_provider_id:
+            for i in range(self.provider_combo.count()):
+                if self.provider_combo.itemData(i) == saved_provider_id:
+                    self.provider_combo.setCurrentIndex(i)
+                    break
+        self._update_provider_ui()
 
         self.close_behavior_combo = QComboBox()
         self.close_behavior_combo.addItem(self._l("每次询问", "Ask every time", "毎回確認", "매번 묻기", "Toujours demander"), userData="ask")
@@ -1200,8 +1219,22 @@ class AppWindow(QMainWindow):
                 border: 1px solid #f0c7d8;
                 border-radius: 8px;
                 padding: 8px;
-                color: #6d4657;
+                color: #333333;
                 font-size: 16px;
+            }
+            QComboBox QAbstractItemView {
+                background: #ffffff;
+                color: #333333;
+                selection-background-color: #ffd6ec;
+                selection-color: #333333;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 24px;
+            }
+            QComboBox::down-arrow {
+                width: 12px;
+                height: 12px;
             }
             QLineEdit#ApiKeyEdit {
                 background: #ffffff;
@@ -1263,6 +1296,39 @@ class AppWindow(QMainWindow):
                 border: 2px solid #d0c0c5;
             }
             QCheckBox:disabled {
+                color: #a09095;
+            }
+            QRadioButton {
+                color: #333333;
+                font-size: 16px;
+                spacing: 8px;
+            }
+            QRadioButton::indicator {
+                width: 18px;
+                height: 18px;
+                border: 2px solid #d0a0b0;
+                border-radius: 4px;
+                background: #fff;
+            }
+            QRadioButton::indicator:hover {
+                border: 2px solid #b07090;
+                background: #fdf;
+            }
+            QRadioButton::indicator:checked {
+                background: #e08ab0;
+                border: 2px solid #d070a0;
+                image: url(%(check_icon)s);
+            }
+            QRadioButton::indicator:checked:hover {
+                background: #d070a0;
+                border: 2px solid #b06090;
+                image: url(%(check_icon)s);
+            }
+            QRadioButton::indicator:disabled {
+                background: #f0e0e5;
+                border: 2px solid #d0c0c5;
+            }
+            QRadioButton:disabled {
                 color: #a09095;
             }
             QLabel#MusicTrackLabel {
@@ -1420,54 +1486,147 @@ class AppWindow(QMainWindow):
         if isinstance(behavior, str):
             self.settings_store.set_close_behavior(behavior)
 
-    def _on_api_key_editing_finished(self):
-        """设置页 API Key 输入回调。"""
-        """EN: Settings page API key input callback."""
-        if not hasattr(self, "api_key_edit"):
+    # === 多模型选择回调 ===
+    # EN: === Multi-model selection callbacks ===
+
+    def _on_provider_changed(self, index: int):
+        """模型提供商切换回调。"""
+        """EN: Model provider switch callback."""
+        provider_id = self.provider_combo.currentData()
+        self.settings_store.set_llm_provider(provider_id)
+        self._update_provider_ui()
+
+    def _update_provider_ui(self):
+        """更新模型选择和API密钥UI。"""
+        """EN: Update model selection and API key UI."""
+        provider_id = self.provider_combo.currentData()
+        provider = get_provider(provider_id)
+        if not provider:
             return
-        api_key = str(self.api_key_edit.text() or "").strip()
-        self.settings_store.set_api_key(api_key)
-        if api_key:
-            os.environ["DEEPSEEK_API_KEY"] = api_key
+
+        # 清除旧的模型按钮
+        while self.model_list_layout.count():
+            item = self.model_list_layout.takeAt(0)
+            if item.widget():
+                # 先从按钮组移除，再删除
+                self.model_button_group.removeButton(item.widget())
+                item.widget().deleteLater()
+
+        # 重新创建模型单选按钮
+        saved_model = self.settings_store.get_llm_model(provider_id) or provider.default_model
+
+        for model in provider.models:
+            radio = QRadioButton()
+            # 视觉支持标记
+            if model.supports_vision:
+                radio.setText(f"{model.name} ✓")
+            else:
+                radio.setText(model.name)
+
+            # 恢复已保存的选择
+            if model.id == saved_model:
+                radio.setChecked(True)
+
+            radio.toggled.connect(lambda checked, mid=model.id: self._on_model_selected(mid, checked))
+            self.model_button_group.addButton(radio)
+            self.model_list_layout.addWidget(radio)
+
+        # 更新视觉支持提示
+        current_model = provider.get_model(saved_model)
+        if current_model and current_model.supports_vision:
+            self.vision_hint_label.setText(
+                self._l("✓ 当前模型支持图片输入", "✓ Current model supports image input", "✓ 現在のモデルは画像入力をサポート", "✓ 현재 모델은 이미지 입력 지원", "✓ Le modèle actuel prend en charge les images"))
+            self.vision_hint_label.setStyleSheet("color: green; font-size: 12px; padding: 4px;")
         else:
-            os.environ.pop("DEEPSEEK_API_KEY", None)
+            self.vision_hint_label.setText(
+                self._l("✗ 当前模型不支持图片输入", "✗ Current model does not support image input", "✗ 現在のモデルは画像入力をサポートしません", "✗ 현재 모델은 이미지 입력 미지원", "✗ Le modèle actuel ne prend pas en charge les images"))
+            self.vision_hint_label.setStyleSheet("color: #999; font-size: 12px; padding: 4px;")
 
-    def _on_api_key_confirm_clicked(self):
-        """确认保存 API Key，并锁定输入框。"""
-        """EN: Confirm and save API key, then lock input."""
-        self._on_api_key_editing_finished()
-        if hasattr(self, "api_key_edit"):
-            self.api_key_edit.setReadOnly(True)
-        if hasattr(self, "api_key_confirm_btn"):
-            self.api_key_confirm_btn.setEnabled(False)
-        if hasattr(self, "api_key_modify_btn"):
-            self.api_key_modify_btn.setEnabled(True)
+        # 更新API密钥提示链接
+        hint = f'<a href="{provider.api_key_hint}">{self._l("获取", "Get", "取得", "가져오기", "Obtenir")} {provider.name} API {self._l("密钥", "Key", "キー", "키", "Clé")}</a>'
+        self.api_key_hint_label.setText(hint)
 
-    def _on_api_key_modify_clicked(self):
-        """进入 API Key 修改模式。"""
-        """EN: Enter API key edit mode."""
-        if hasattr(self, "api_key_edit"):
-            self.api_key_edit.setReadOnly(False)
-            self.api_key_edit.setFocus()
-            self.api_key_edit.selectAll()
-        if hasattr(self, "api_key_confirm_btn"):
-            self.api_key_confirm_btn.setEnabled(True)
-        if hasattr(self, "api_key_modify_btn"):
-            self.api_key_modify_btn.setEnabled(False)
+        # 恢复已保存的API密钥
+        saved_key = self.settings_store.get_api_key_for_provider(provider_id)
+        self.provider_api_key_edit.setText(saved_key)
 
-    def _on_api_key_visibility_toggled(self, checked: bool):
-        """设置页 API Key 可见性切换回调。"""
-        """EN: Settings page API key visibility toggle callback."""
-        if not hasattr(self, "api_key_edit"):
+        # 通知聊天面板更新
+        self._notify_chat_panel_model_changed()
+
+    def _on_model_selected(self, model_id: str, checked: bool):
+        """模型选择回调。"""
+        """EN: Model selection callback."""
+        if not checked:
             return
+
+        provider_id = self.provider_combo.currentData()
+        self.settings_store.set_llm_model(provider_id, model_id)
+
+        # 更新视觉支持提示
+        provider = get_provider(provider_id)
+        if provider:
+            model = provider.get_model(model_id)
+            if model:
+                if model.supports_vision:
+                    self.vision_hint_label.setText(
+                        self._l("✓ 当前模型支持图片输入", "✓ Current model supports image input", "✓ 現在のモデルは画像入力をサポート", "✓ 현재 모델은 이미지 입력 지원", "✓ Le modèle actuel prend en charge les images"))
+                    self.vision_hint_label.setStyleSheet("color: green; font-size: 12px; padding: 4px;")
+                else:
+                    self.vision_hint_label.setText(
+                        self._l("✗ 当前模型不支持图片输入", "✗ Current model does not support image input", "✗ 現在のモデルは画像入力をサポートしません", "✗ 현재 모델은 이미지 입력 미지원", "✗ Le modèle actuel ne prend pas en charge les images"))
+                    self.vision_hint_label.setStyleSheet("color: #999; font-size: 12px; padding: 4px;")
+
+                # 通知聊天面板更新
+                self._notify_chat_panel_model_changed()
+
+    def _on_provider_api_key_changed(self):
+        """保存当前提供商的API密钥。"""
+        """EN: Save the current provider's API key."""
+        provider_id = self.provider_combo.currentData()
+        key = self.provider_api_key_edit.text().strip()
+        self.settings_store.set_api_key_for_provider(provider_id, key)
+
+        # 同时更新环境变量
+        provider = get_provider(provider_id)
+        if provider:
+            if key:
+                os.environ[provider.api_key_env] = key
+            else:
+                os.environ.pop(provider.api_key_env, None)
+
+    def _on_provider_key_visibility_toggled(self, checked: bool):
+        """提供商API密钥可见性切换。"""
+        """EN: Provider API key visibility toggle."""
         if checked:
-            self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Normal)
-            if hasattr(self, "api_key_visibility_btn"):
-                self.api_key_visibility_btn.setText("🙈")
+            self.provider_api_key_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.provider_key_visibility_btn.setText("🙈")
+        else:
+            self.provider_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+            self.provider_key_visibility_btn.setText("👁")
+
+    def _notify_chat_panel_model_changed(self):
+        """通知聊天面板模型已更改。"""
+        """EN: Notify chat panel that model has changed."""
+        provider_id = self.provider_combo.currentData()
+        provider = get_provider(provider_id)
+        if not provider:
             return
-        self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        if hasattr(self, "api_key_visibility_btn"):
-            self.api_key_visibility_btn.setText("👁")
+
+        model_id = self.settings_store.get_llm_model(provider_id) or provider.default_model
+        model = provider.get_model(model_id)
+        supports_vision = model.supports_vision if model else False
+
+        # 通知聊天窗口
+        if hasattr(self, 'on_open_chat_window') and self.on_open_chat_window:
+            # 获取聊天窗口（通过检查是否存在）
+            if hasattr(self.pet, 'chat_window') and self.pet.chat_window:
+                chat_panel = self.pet.chat_window.chat_panel
+                if hasattr(chat_panel, 'set_provider_and_model'):
+                    chat_panel.set_provider_and_model(provider_id, model_id, supports_vision)
+
+        # 更新API客户端
+        if self.chat_api:
+            self.chat_api.set_provider(provider_id, model_id)
 
     def eventFilter(self, watched, event):
         """过滤指定下拉框的滚轮事件，避免滚轮误改值。"""
@@ -1489,6 +1648,7 @@ class AppWindow(QMainWindow):
             self.display_mode_combo,
             self.close_behavior_combo,
             self.instance_count_spin,
+            self.provider_combo,
         }:
             event.ignore()
             return True
@@ -1616,22 +1776,6 @@ class AppWindow(QMainWindow):
                 pass
             try:
                 self.music_list_widget.model().rowsMoved.disconnect(self._on_music_list_rows_moved)
-            except Exception:
-                pass
-
-        if hasattr(self, "api_key_visibility_btn"):
-            try:
-                self.api_key_visibility_btn.toggled.disconnect(self._on_api_key_visibility_toggled)
-            except Exception:
-                pass
-        if hasattr(self, "api_key_confirm_btn"):
-            try:
-                self.api_key_confirm_btn.clicked.disconnect(self._on_api_key_confirm_clicked)
-            except Exception:
-                pass
-        if hasattr(self, "api_key_modify_btn"):
-            try:
-                self.api_key_modify_btn.clicked.disconnect(self._on_api_key_modify_clicked)
             except Exception:
                 pass
 

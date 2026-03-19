@@ -21,19 +21,24 @@ class _ReplyWorker(QObject):
 
     finished = Signal(int, str)
 
-    def __init__(self, request_id: int, api: ChatAgentApi, user_input: str, history_records: list[str]):
+    def __init__(self, request_id: int, api: ChatAgentApi, user_input: str, history_records: list[str], images: list[str] | None = None):
         super().__init__()
         self._request_id = int(request_id)
         self._api = api
         self._user_input = user_input
         self._history_records = history_records
+        self._images = images or []
 
     @Slot()
     def run(self):
         try:
-            reply_text = self._api.reply(self._user_input, history_records=self._history_records)
+            reply_text = self._api.reply(
+                self._user_input,
+                images=self._images if self._images else None,
+                history_records=self._history_records
+            )
         except Exception as exc:  # pragma: no cover - 兜底保护
-            reply_text = f"调用 DeepSeek 失败：{exc}"
+            reply_text = f"调用 API 失败：{exc}"
         self.finished.emit(self._request_id, str(reply_text).strip())
 
 
@@ -42,6 +47,7 @@ class _PendingReply:
     conversation_id: str
     user_input: str
     history_records: list[str]
+    images: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -173,7 +179,7 @@ class ChatSession(QObject):
             )
         return result
 
-    def _append_player_and_reply(self, kind: MessageKind, content: str, record_text: str):
+    def _append_player_and_reply(self, kind: MessageKind, content: str, record_text: str, images: list[str] | None = None):
         clean_content = str(content).strip()
         clean_record = str(record_text).strip()
         if not clean_content and not clean_record:
@@ -200,14 +206,15 @@ class ChatSession(QObject):
 
         reply_input = clean_record or clean_content
         history_records = self._build_api_history_records(conversation_id)
-        self._enqueue_reply_request(conversation_id, reply_input, history_records)
+        self._enqueue_reply_request(conversation_id, reply_input, history_records, images)
 
-    def _enqueue_reply_request(self, conversation_id: str, reply_input: str, history_records: list[str]):
+    def _enqueue_reply_request(self, conversation_id: str, reply_input: str, history_records: list[str], images: list[str] | None = None):
         self._pending_replies.append(
             _PendingReply(
                 conversation_id=conversation_id,
                 user_input=reply_input,
                 history_records=history_records,
+                images=images or [],
             )
         )
         self._start_next_reply_request_if_idle()
@@ -219,9 +226,9 @@ class ChatSession(QObject):
             return
 
         next_reply = self._pending_replies.pop(0)
-        self._start_reply_request(next_reply.conversation_id, next_reply.user_input, next_reply.history_records)
+        self._start_reply_request(next_reply.conversation_id, next_reply.user_input, next_reply.history_records, next_reply.images)
 
-    def _start_reply_request(self, conversation_id: str, reply_input: str, history_records: list[str]):
+    def _start_reply_request(self, conversation_id: str, reply_input: str, history_records: list[str], images: list[str] | None = None):
         if self._active_request_id is not None:
             return
 
@@ -231,7 +238,13 @@ class ChatSession(QObject):
         self._request_to_conversation[request_id] = conversation_id
 
         thread = QThread(self)
-        worker = _ReplyWorker(request_id=request_id, api=self._api, user_input=reply_input, history_records=history_records)
+        worker = _ReplyWorker(
+            request_id=request_id,
+            api=self._api,
+            user_input=reply_input,
+            history_records=history_records,
+            images=images
+        )
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
@@ -346,10 +359,12 @@ class ChatSession(QObject):
         if not clean_path:
             return
         record = f"[图片:{Path(clean_path).name}]"
-        self._append_player_and_reply("image", clean_path, record)
+        self._append_player_and_reply("image", clean_path, record, images=[clean_path])
 
-    def send_composed(self, display_html: str, record_text: str):
-        self._append_player_and_reply("rich", display_html, record_text)
+    def send_composed(self, display_html: str, record_text: str, images: list[str] | None = None):
+        """发送组合消息（文本+图片）。"""
+        """EN: Send composed message (text + images)."""
+        self._append_player_and_reply("rich", display_html, record_text, images=images)
 
     def dispose(self):
         self._pending_replies.clear()

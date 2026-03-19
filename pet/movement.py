@@ -183,6 +183,9 @@ class MovementController:
         if now_ms < self.pause_until_ms:
             return
 
+        current_x = self.pet.x()
+        current_y = self.pet.y()
+
         self.float_x += self.velocity_x
         self.float_y += self.velocity_y
 
@@ -213,6 +216,18 @@ class MovementController:
         self.float_x = float(next_x)
         self.float_y = float(next_y)
 
-        self.pet.facing_left = self.velocity_x < 0
-        self.pet._apply_state_animation()
+        moved = (next_x != current_x) or (next_y != current_y)
+
+        # 只有实际发生位移时才更新朝向和动画，避免动画与位置不同步
+        # EN: Only update direction and animation when actually displaced to avoid desync
+        if moved:
+            self.pet.facing_left = self.velocity_x < 0
+            self.pet._apply_state_animation()
+        else:
+            # 没有位移时进入休息状态，但只在首次触发
+            # EN: Enter rest state when not moving, but only on first trigger
+            if not self.pet.state.in_rest:
+                self.pet.state.enter_rest()
+                self.pet.show_rest_animation()
+
         self.pet.move(next_x, next_y)

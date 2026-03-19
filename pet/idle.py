@@ -51,10 +51,14 @@ class IdleController:
         if self.pet.state.in_rest:
             return
 
-        # 停止移动时更易休息。使用更高触发概率。
-        # EN: It's easier to rest when you stop moving. Use a higher trigger probability.
-        chance = REST_CHANCE_WHEN_STOPPED if not self.pet.state.move_enabled else REST_CHANCE_WHEN_MOVING
-        if random.random() > chance:
+        # 移动已停止时，跳过概率判定（由 apply_stop_move 直接控制休息状态）
+        # EN: When movement is stopped, skip probability check (rest state is controlled by apply_stop_move)
+        if not self.pet.state.move_enabled:
+            return
+
+        # 移动中按概率进入休息
+        # EN: Enter rest by probability when moving
+        if random.random() > REST_CHANCE_WHEN_MOVING:
             return
 
         self.pet.state.enter_rest()
