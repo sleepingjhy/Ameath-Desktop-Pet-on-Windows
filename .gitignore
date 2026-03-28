@@ -19,3 +19,6 @@ Thumbs.db
 
 # Qoder CLI local config
 .qoder/
+
+# Local secrets
+config_local.yaml

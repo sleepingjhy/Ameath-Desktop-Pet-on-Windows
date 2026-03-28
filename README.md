@@ -63,6 +63,21 @@ $env:DEEPSEEK_API_KEY="YOUR_API_KEY"
 
 ---
 
+## v1.4.1
+
+### 🔐 API-Key 配置更新
+
+- 更新api-key配置文件`config.yaml`。
+- 建议先创建local配置文件`config_local.yaml`，防止提交推送时泄露你的API_KEY（程序会优先读取该文件；EXE 场景默认写入`%APPDATA%/AemeathDesktopPet/config_local.yaml`）。
+- API-Key读取顺序调整为：先读取`config_local.yaml`，读取不到再读取`config.yaml`。
+- 在 EXE 中输入 API-Key 后会自动保存到本地`config_local.yaml`。
+
+### 🐾 移动修复
+
+- 修复人物移动暂停不动的bug。
+
+---
+
 ## v1.4.0
 
 ### 🤖 多模型 API 支持

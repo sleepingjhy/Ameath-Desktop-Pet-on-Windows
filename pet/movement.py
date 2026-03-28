@@ -177,6 +177,12 @@ class MovementController:
         self._maybe_update_horizontal_velocity(base_speed_x)
         self._maybe_update_vertical_velocity(base_speed_y)
 
+        # 避免双轴速度同时为 0 导致长时间静止。
+        # EN: Avoid long stalls when both axis velocities become 0.
+        if abs(self.velocity_x) < 1e-6 and abs(self.velocity_y) < 1e-6:
+            direction = random.choice([-1, 1])
+            self.velocity_x = float(direction) * self._randomized_speed(base_speed_x)
+
         now_ms = int(time.monotonic() * 1000)
         # 停顿期内不移动。触边后先停顿再允许下一次位移。
         # EN: Do not move during the standstill period. After touching the edge, pause first before allowing the next displacement.
@@ -223,11 +229,5 @@ class MovementController:
         if moved:
             self.pet.facing_left = self.velocity_x < 0
             self.pet._apply_state_animation()
-        else:
-            # 没有位移时进入休息状态，但只在首次触发
-            # EN: Enter rest state when not moving, but only on first trigger
-            if not self.pet.state.in_rest:
-                self.pet.state.enter_rest()
-                self.pet.show_rest_animation()
 
         self.pet.move(next_x, next_y)

@@ -58,7 +58,8 @@ if (Test-Path $srcGifs) {
     Copy-Item -Path (Join-Path $srcGifs "*") -Destination $distGifs -Recurse -Force
 }
 
-# 将 music 目录单独放到产物根目录，便于普通用户自行增删音乐文件。
+# 将 music 目录放到产物根目录，但不拷贝任何音频文件。
+# 仅保留占位文件，避免分发包携带本地音乐资源。
 $distMusic = Join-Path $distRoot "music"
 if (Test-Path $distMusic) {
     Remove-Item -Recurse -Force $distMusic -ErrorAction SilentlyContinue
@@ -67,10 +68,12 @@ New-Item -ItemType Directory -Path $distMusic -Force | Out-Null
 
 $srcMusic = Join-Path $root "music"
 if (Test-Path $srcMusic) {
-    Get-ChildItem -Path $srcMusic -Force |
-        Where-Object { $_.Name -notin @('.gitignore', '.gitkeep') } |
+    @('.gitignore', '.gitkeep') |
         ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination (Join-Path $distMusic $_.Name) -Recurse -Force
+            $placeholder = Join-Path $srcMusic $_
+            if (Test-Path $placeholder) {
+                Copy-Item -Path $placeholder -Destination (Join-Path $distMusic $_) -Force
+            }
         }
 }
 
@@ -80,5 +83,18 @@ Get-ChildItem -Path $root -File -Filter "*.txt" |
     ForEach-Object {
         Copy-Item -Path $_.FullName -Destination (Join-Path $distRoot $_.Name) -Force
     }
+
+# 同步安全模板配置文件（不含本地密钥）。
+# EXE 运行时本地密钥写入 AppData 下的 config_local.yaml。
+$projectConfig = Join-Path $root "config.yaml"
+if (Test-Path $projectConfig) {
+    Copy-Item -Path $projectConfig -Destination (Join-Path $distRoot "config.yaml") -Force
+}
+
+# 删除 PyInstaller 生成的 spec 文件，保持项目整洁。
+$specFile = Join-Path $root "exe\AemeathDesktopPet.spec"
+if (Test-Path $specFile) {
+    Remove-Item -Force $specFile -ErrorAction SilentlyContinue
+}
 
 Write-Host "打包完成，输出目录: $distRoot" -ForegroundColor Green

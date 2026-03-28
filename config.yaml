@@ -1,0 +1,12 @@
+version: 1
+api_keys:
+  openai: "Your_GPT_API_KEY"
+  gemini: "Your_Gemini_API_KEY"
+  claude: "Your_Claude_API_KEY"
+  grok: "Your_Grok_API_KEY"
+  qwen: "Your_Qwen_API_KEY"
+  doubao: "Your_Doubao_API_KEY"
+  glm: "Your_GLM_API_KEY"
+  minimax: "Your_Minimax_API_KEY"
+  kimi: "Your_Kimi_API_KEY"
+  deepseek: "Your_Deepseek_API_KEY"
